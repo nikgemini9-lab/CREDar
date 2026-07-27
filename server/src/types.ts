@@ -48,7 +48,8 @@ export interface Stats {
 
 export interface CredarConfig {
   port: number;
-  dbPath: string;
+  databaseUrl: string;
+  databaseAuthToken: string | undefined;
   rettiwtApiKey: string | undefined;
   demoMode: boolean;
   searchTerms: string[];

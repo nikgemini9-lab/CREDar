@@ -53,12 +53,12 @@ export function toTweetRecord(tweet: TweetLike): TweetRecord {
 export type TweetHandler = (tweet: TweetRecord) => void | Promise<void>;
 
 async function processTweet(raw: TweetLike, onTweet: TweetHandler): Promise<void> {
-  if (tweetExists(raw.id)) return;
+  if (await tweetExists(raw.id)) return;
 
   const record = toTweetRecord(raw);
-  insertTweet(record);
-  upsertAccount(record);
-  setMeta(LAST_SEEN_ID_KEY, record.id);
+  await insertTweet(record);
+  await upsertAccount(record);
+  await setMeta(LAST_SEEN_ID_KEY, record.id);
 
   await onTweet(record);
 }
@@ -75,7 +75,7 @@ async function runLiveLoop(onTweet: TweetHandler): Promise<void> {
 
   while (true) {
     try {
-      const sinceId = getMeta(LAST_SEEN_ID_KEY);
+      const sinceId = await getMeta(LAST_SEEN_ID_KEY);
       const filter = new TweetFilter({
         optionalWords: config.searchTerms,
         ...(sinceId ? { sinceId } : {}),

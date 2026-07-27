@@ -20,7 +20,8 @@ official X API.
 ```
 server/   Node.js + TypeScript backend
   - polls X/Twitter via rettiwt-api's tweet.stream()
-  - stores matches in SQLite (node:sqlite)
+  - stores matches in SQLite - a local file by default, or a free remote
+    libSQL/Turso database for storage that survives redeploys (via @libsql/client)
   - tracks a per-account mention leaderboard
   - broadcasts new matches over a WebSocket
   - sends a Telegram alert for every match
@@ -85,6 +86,28 @@ Leave `RETTIWT_API_KEY` blank to run in demo mode.
 
 Leave both blank to disable Telegram alerts.
 
+#### Database (optional, for persistence across redeploys)
+
+By default CREDAR stores everything in a local SQLite file
+(`server/data/credar.db`) — zero setup, works great for local dev. The
+tradeoff: on a host with an ephemeral filesystem (like Render's free plan),
+that file resets on every redeploy/restart.
+
+To keep tracked tweets/accounts across redeploys for free, create a
+[Turso](https://turso.tech) database (libSQL — wire-compatible with SQLite,
+generous free tier, no credit card):
+
+```bash
+# after installing the Turso CLI and logging in (turso auth login)
+turso db create credar
+turso db show credar --url                # -> DATABASE_URL
+turso db tokens create credar              # -> DATABASE_AUTH_TOKEN
+```
+
+Put those two values in `DATABASE_URL` / `DATABASE_AUTH_TOKEN` in
+`server/.env` (or as Render env vars). Leave both unset to keep using the
+local file.
+
 #### What CREDAR tracks
 
 The defaults match `$CRED` / `@crediblefin` / the CA above. Override with
@@ -130,21 +153,21 @@ as a single Node web service:
    storing them in the blueprint):
    - `RETTIWT_API_KEY` — see cookie extraction steps above (omit to stay in demo mode)
    - `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`
+   - `DATABASE_URL` / `DATABASE_AUTH_TOKEN` — see the Turso setup above. **Set
+     these on Render**, since without them CREDAR falls back to a local
+     SQLite file, which the free plan wipes on every redeploy/restart.
    - `SEARCH_TERMS` / `DEMO_MODE` if you want to override the defaults
 
-`render.yaml` is set to the **free** plan, which has two tradeoffs worth
-knowing about:
+`render.yaml` is set to the **free** plan, which has one tradeoff worth
+knowing about: free web services sleep after 15 minutes with no inbound
+traffic, and take about a minute to wake back up on the next request. While
+asleep, CREDAR isn't polling for new mentions. To keep it running
+continuously at no cost, set up an external uptime pinger (below).
 
-- **Spin-down**: free web services sleep after 15 minutes with no inbound
-  traffic, and take about a minute to wake back up on the next request. While
-  asleep, CREDAR isn't polling for new mentions. To keep it running
-  continuously at no cost, set up an external uptime pinger to hit it every
-  ~10 minutes (below).
-- **Ephemeral filesystem**: the free plan has no persistent disk, so the
-  SQLite file (tracked tweets/accounts) resets whenever the service redeploys,
-  restarts, or spins down+up. Fine for trying it out; if you later want
-  history to survive restarts, add a paid disk (see the commented-out block
-  in `render.yaml`) or point `DB_PATH` at an external database instead.
+Using Turso for `DATABASE_URL` (rather than the default local file) is what
+makes tracked tweets/accounts survive redeploys on the free plan — the free
+plan's filesystem itself is still ephemeral, but the database now lives
+outside it.
 
 ### Keeping the free instance awake
 

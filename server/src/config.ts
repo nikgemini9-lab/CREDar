@@ -19,9 +19,15 @@ function parseSearchTerms(): string[] {
 
 const rettiwtApiKey = process.env.RETTIWT_API_KEY?.trim() || undefined;
 
+const defaultLocalDbPath = path.join(process.cwd(), "data", "credar.db");
+
 export const config: CredarConfig = {
   port: Number(process.env.PORT ?? 8787),
-  dbPath: process.env.DB_PATH ?? path.join(process.cwd(), "data", "credar.db"),
+  // Accepts a local `file:` path (default - no setup needed) or a remote
+  // libSQL/Turso URL (`libsql://<db>.turso.io`) for storage that survives
+  // redeploys on hosts with an ephemeral filesystem.
+  databaseUrl: process.env.DATABASE_URL ?? `file:${defaultLocalDbPath}`,
+  databaseAuthToken: process.env.DATABASE_AUTH_TOKEN?.trim() || undefined,
   rettiwtApiKey,
   demoMode: process.env.DEMO_MODE === "true" || (!rettiwtApiKey && process.env.DEMO_MODE !== "false"),
   searchTerms: parseSearchTerms(),
