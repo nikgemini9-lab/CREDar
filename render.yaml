@@ -2,17 +2,11 @@ services:
   - type: web
     name: credar
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
-    disk:
-      name: credar-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
-      - key: DB_PATH
-        value: /var/data/credar.db
       - key: POLL_INTERVAL_MS
         value: "30000"
       - key: RETTIWT_API_KEY
