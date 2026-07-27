@@ -132,21 +132,37 @@ as a single Node web service:
    - `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`
    - `SEARCH_TERMS` / `DEMO_MODE` if you want to override the defaults
 
-Two things matter for this to work well on Render:
+`render.yaml` is set to the **free** plan, which has two tradeoffs worth
+knowing about:
 
-- **Instance type**: CREDAR is a long-running poller with a WebSocket feed,
-  not a request/response API — it needs to stay up continuously. Render's
-  free web services spin down after 15 minutes of inactivity, which would
-  kill the monitor. Use at least the **Starter** plan (already set in
-  `render.yaml`), which also supports the persistent disk below.
-- **Persistent disk**: `render.yaml` mounts a 1GB disk at `/var/data` and
-  points `DB_PATH` at it, so tracked tweets/accounts survive deploys and
-  restarts. Without a disk (e.g. on a plan that doesn't support one), CREDAR
-  still runs fine, it just starts with an empty database on every deploy.
+- **Spin-down**: free web services sleep after 15 minutes with no inbound
+  traffic, and take about a minute to wake back up on the next request. While
+  asleep, CREDAR isn't polling for new mentions. To keep it running
+  continuously at no cost, set up an external uptime pinger to hit it every
+  ~10 minutes (below).
+- **Ephemeral filesystem**: the free plan has no persistent disk, so the
+  SQLite file (tracked tweets/accounts) resets whenever the service redeploys,
+  restarts, or spins down+up. Fine for trying it out; if you later want
+  history to survive restarts, add a paid disk (see the commented-out block
+  in `render.yaml`) or point `DB_PATH` at an external database instead.
+
+### Keeping the free instance awake
+
+Use a free uptime service to ping the health endpoint every 5-10 minutes so
+Render never sees 15 idle minutes:
+
+1. Sign up at [UptimeRobot](https://uptimerobot.com) (or
+   [cron-job.org](https://cron-job.org) — no credit card needed for either).
+2. Add a new HTTP(s) monitor:
+   - URL: `https://<your-service>.onrender.com/api/health`
+   - Interval: 5 minutes
+3. Save. Each ping counts as inbound traffic, so Render never spins the
+   service down (note: this does *not* prevent the ephemeral-filesystem reset
+   above — it only stops the *sleep*-triggered restarts).
 
 If you'd rather configure the service by hand instead of using the blueprint:
 build command `npm install && npm run build`, start command `npm start`,
-health check path `/api/health`.
+health check path `/api/health`, plan free.
 
 ## REST API
 

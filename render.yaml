@@ -6,6 +6,14 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
+    # Free plan has no persistent disk, so the SQLite file resets on every
+    # redeploy/restart/spin-down. To keep tracked data across restarts, upgrade
+    # `plan` to at least `starter` and uncomment the block below, then set
+    # DB_PATH=/var/data/credar.db as an env var.
+    # disk:
+    #   name: credar-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
     envVars:
       - key: POLL_INTERVAL_MS
         value: "30000"
