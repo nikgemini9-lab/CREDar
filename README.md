@@ -108,8 +108,45 @@ to the backend on `:8787`).
 
 ```bash
 npm run build
-npm start   # runs the built server; serve client/dist with any static host
+npm start
 ```
+
+`npm run build` builds both the server and the dashboard. In production the
+server serves the built dashboard itself (`server/src/index.ts` serves
+`client/dist` as static files whenever that directory exists), so `npm start`
+alone runs the whole app — API, WebSocket, and UI — on a single port. No
+separate static host or CORS config needed.
+
+## Deploying to Render
+
+This repo ships a [`render.yaml`](./render.yaml) Blueprint that deploys CREDAR
+as a single Node web service:
+
+1. In the Render dashboard: **New → Blueprint**, point it at this repo/branch.
+2. Render provisions one web service (`credar`) running `npm install && npm run build`
+   to build, then `npm start` to serve everything on one port.
+3. After the first deploy, set the secret env vars it left blank (they're
+   marked `sync: false` in `render.yaml` so Render prompts for them instead of
+   storing them in the blueprint):
+   - `RETTIWT_API_KEY` — see cookie extraction steps above (omit to stay in demo mode)
+   - `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`
+   - `SEARCH_TERMS` / `DEMO_MODE` if you want to override the defaults
+
+Two things matter for this to work well on Render:
+
+- **Instance type**: CREDAR is a long-running poller with a WebSocket feed,
+  not a request/response API — it needs to stay up continuously. Render's
+  free web services spin down after 15 minutes of inactivity, which would
+  kill the monitor. Use at least the **Starter** plan (already set in
+  `render.yaml`), which also supports the persistent disk below.
+- **Persistent disk**: `render.yaml` mounts a 1GB disk at `/var/data` and
+  points `DB_PATH` at it, so tracked tweets/accounts survive deploys and
+  restarts. Without a disk (e.g. on a plan that doesn't support one), CREDAR
+  still runs fine, it just starts with an empty database on every deploy.
+
+If you'd rather configure the service by hand instead of using the blueprint:
+build command `npm install && npm run build`, start command `npm start`,
+health check path `/api/health`.
 
 ## REST API
 

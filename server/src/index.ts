@@ -1,6 +1,9 @@
 import cors from "cors";
 import express from "express";
 import { createServer } from "node:http";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { apiRouter } from "./api/router.js";
 import { config } from "./config.js";
 import "./db/index.js";
@@ -12,6 +15,14 @@ const app = express();
 app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json());
 app.use("/api", apiRouter);
+
+// Serve the built dashboard from the same service/port when it's been built
+// alongside the server (this is how CREDAR runs as a single Render web
+// service: one process, one port, no CORS/cross-origin WebSocket to manage).
+const clientDist = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../client/dist");
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+}
 
 const server = createServer(app);
 attachWebSocketHub(server);
