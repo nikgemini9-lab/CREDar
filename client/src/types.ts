@@ -47,6 +47,15 @@ export interface SentimentBucket {
   fud: number;
 }
 
+export type SentimentMeterWindow = "24h" | "3d" | "7d";
+
+export interface SentimentMeter {
+  window: SentimentMeterWindow;
+  score: number | null;
+  label: string;
+  sampleSize: number;
+}
+
 export interface Stats {
   totalTweets: number;
   totalAccounts: number;
@@ -58,6 +67,7 @@ export interface Stats {
   dailyVolume: StatsBucket[];
   sentimentBreakdown: Record<Sentiment, number>;
   dailySentiment: SentimentBucket[];
+  sentimentMeters: SentimentMeter[];
   topAccounts: AccountRecord[];
 }
 

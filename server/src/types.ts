@@ -47,6 +47,16 @@ export interface SentimentBucket {
   fud: number;
 }
 
+export type SentimentMeterWindow = "24h" | "3d" | "7d";
+
+export interface SentimentMeter {
+  window: SentimentMeterWindow;
+  /** 0 (heaviest FUD) to 100 (most bullish), averaged over classified tweets in the window. Null if none yet. */
+  score: number | null;
+  label: string;
+  sampleSize: number;
+}
+
 export type SwapSide = "buy" | "sell";
 
 export interface BigBuyRecord {
@@ -78,6 +88,7 @@ export interface Stats {
   dailyVolume: StatsBucket[];
   sentimentBreakdown: Record<Sentiment, number>;
   dailySentiment: SentimentBucket[];
+  sentimentMeters: SentimentMeter[];
   topAccounts: AccountRecord[];
 }
 
@@ -101,5 +112,5 @@ export interface CredarConfig {
   bigBuyMinUsd: number;
   bigBuyMinTokens: number;
   adminToken: string | undefined;
-  anthropicApiKey: string | undefined;
+  geminiApiKey: string | undefined;
 }

@@ -3,12 +3,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config.js";
 import { DEMO_TWEET_HANDLES } from "../monitor/demoFeed.js";
+import { SENTIMENT_METER_WINDOWS, sentimentLabel, sentimentPoints } from "../sentiment/meter.js";
 import type {
   AccountRecord,
   BigBuyRecord,
   MatchKind,
   Sentiment,
   SentimentBucket,
+  SentimentMeter,
   Stats,
   StatsBucket,
   SwapSide,
@@ -363,6 +365,9 @@ export async function getStats(): Promise<Stats> {
   const hourlyBucketMap = new Map<string, number>();
   const dailyBucketMap = new Map<string, number>();
   const dailySentimentMap = new Map<string, Record<Sentiment, number>>();
+  const meterAccum = new Map<string, { sum: number; count: number }>();
+  for (const w of SENTIMENT_METER_WINDOWS) meterAccum.set(w.key, { sum: 0, count: 0 });
+
   for (const row of recentTweetsRs.rows) {
     const matches = JSON.parse(row.matches as string) as MatchKind[];
     for (const m of matches) matchBreakdown[m] += 1;
@@ -387,8 +392,27 @@ export async function getStats(): Promise<Stats> {
         dailySentimentMap.set(dayKey, { bullish: 0, positive: 0, negative: 0, fud: 0 });
       }
       dailySentimentMap.get(dayKey)![sentiment] += 1;
+
+      const ageMs = now - createdAt.getTime();
+      for (const w of SENTIMENT_METER_WINDOWS) {
+        if (ageMs > w.ms) continue;
+        const acc = meterAccum.get(w.key)!;
+        acc.sum += sentimentPoints(sentiment);
+        acc.count += 1;
+      }
     }
   }
+
+  const sentimentMeters: SentimentMeter[] = SENTIMENT_METER_WINDOWS.map((w) => {
+    const acc = meterAccum.get(w.key)!;
+    const score = acc.count > 0 ? Math.round(acc.sum / acc.count) : null;
+    return {
+      window: w.key,
+      score,
+      label: score !== null ? sentimentLabel(score) : "No data yet",
+      sampleSize: acc.count,
+    };
+  });
 
   const hourlyVolume: StatsBucket[] = [];
   for (let i = 23; i >= 0; i--) {
@@ -426,6 +450,7 @@ export async function getStats(): Promise<Stats> {
     dailyVolume,
     sentimentBreakdown,
     dailySentiment,
+    sentimentMeters,
     topAccounts,
   };
 }

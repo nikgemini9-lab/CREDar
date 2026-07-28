@@ -376,6 +376,54 @@ body {
   margin-top: 6px;
 }
 
+/* ---------- Sentiment meter ---------- */
+
+.meter-row {
+  margin-bottom: 16px;
+}
+
+.meter-row:last-child {
+  margin-bottom: 0;
+}
+
+.meter-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.meter-head strong {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.meter-track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(
+    to right,
+    var(--sentiment-fud) 0%,
+    var(--sentiment-negative) 33%,
+    var(--sentiment-positive) 66%,
+    var(--sentiment-bullish) 100%
+  );
+}
+
+.meter-marker {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+  transform: translate(-50%, -50%);
+}
+
 /* ---------- Match breakdown legend ---------- */
 
 .legend {

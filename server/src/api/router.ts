@@ -73,7 +73,7 @@ export function createApiRouter(onBigBuy: BigBuyHandler): Router {
       telegramEnabled: Boolean(config.telegramBotToken && config.telegramChatId),
       chainDemoMode: config.chainDemoMode,
       bigBuyMinUsd: config.bigBuyMinUsd,
-      sentimentEnabled: Boolean(config.anthropicApiKey),
+      sentimentEnabled: Boolean(config.geminiApiKey),
     });
   });
 

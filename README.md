@@ -11,7 +11,8 @@ CREDAR watches X/Twitter in near real-time for posts that:
 Every matching post is logged, shown live on a dashboard, tracked per-account
 (a leaderboard of who's talking about $CRED), and pushed as a Telegram alert.
 Each real post is also classified by sentiment - **bullish, positive,
-negative, or FUD** - via the Claude API, and charted over the last 7 days.
+negative, or FUD** - via the free-tier Gemini API, shown as a live 24h/3d/7d
+sentiment meter and charted over the last 7 days.
 
 CREDAR also watches the contract address on-chain (Solana) for **big buys and
 sells** — swaps above a USD threshold, whether traded directly on a DEX or
@@ -36,13 +37,14 @@ server/   Node.js + TypeScript backend
   - tracks a per-account mention leaderboard
   - broadcasts new matches/big-trades over a WebSocket
   - sends a Telegram alert for every match and every big buy/sell
-  - classifies each real tweet's sentiment via the Claude API in a background
+  - classifies each real tweet's sentiment via the Gemini API in a background
     sweep (bullish/positive/negative/fud), broadcast over the WebSocket too
   - exposes a small REST API for the dashboard
 
 client/   Vite + React + TypeScript dashboard
   - big, prominent live $CRED price ticker
   - live feed of matching posts, with a sentiment badge per tweet
+  - live sentiment meter (24h/3d/7d gauge scores, Fear & Greed Index style)
   - tracked-accounts leaderboard (front and center - mentions happen far
     more often than big trades)
   - live feed of big buys/sells, with tx/wallet links to Solscan's explorer
@@ -138,25 +140,39 @@ as `SWAP` transactions in Helius, so both are covered.
 Leave `HELIUS_WEBHOOK_AUTH_HEADER` blank to run big-buy detection in demo mode
 with synthetic swaps instead.
 
-#### Sentiment analysis (optional)
+#### Sentiment analysis (optional, free)
 
 CREDAR can classify every real (non-demo) tweet's sentiment into **bullish,
-positive, negative, or FUD** using the [Claude API](https://console.anthropic.com),
-and chart the results over the last 7 days.
+positive, negative, or FUD** using the [Gemini API](https://aistudio.google.com),
+show a live **sentiment meter** (a 0-100 gauge, like a crypto "Fear & Greed"
+index) for the past 24 hours / 3 days / 7 days, and chart the breakdown over
+the last 7 days.
 
-1. Create an API key at [console.anthropic.com](https://console.anthropic.com).
-2. Put it in `ANTHROPIC_API_KEY` in `server/.env` (or as a Render env var).
+**Getting a free Gemini API key (no credit card required):**
 
-Classification runs in a background sweep (every ~5s, a handful of tweets at
-a time) rather than inline as tweets are ingested, so it never slows down
-live polling or historical backfill. It uses `claude-haiku-4-5`, a small/fast
-model, and costs roughly **$0.0004-0.0005 per tweet classified** (a few
-hundred input tokens + a tiny forced tool-call output) - for reference, 150
-mentions/day works out to around $2/month. Demo tweets are never classified,
-so demo mode never incurs API cost.
+1. Go to [aistudio.google.com](https://aistudio.google.com) and sign in with
+   a Google account.
+2. Click **Get API key** (top left or in the left sidebar) → **Create API
+   key**.
+3. Copy the key and put it in `GEMINI_API_KEY` in `server/.env` (or as a
+   Render env var).
 
-Leave `ANTHROPIC_API_KEY` blank to disable sentiment analysis entirely - the
-sentiment badges and chart simply don't appear.
+That's it - no billing setup, no card. Gemini's free tier covers
+`gemini-2.5-flash-lite` (the model CREDAR uses) at a request-per-day and
+request-per-minute cap that Google adjusts periodically - check your
+[AI Studio dashboard](https://aistudio.google.com) for the current numbers,
+but it's comfortably enough for a project at this scale. One caveat: on the
+free tier, Google may use submitted content to improve their products (this
+only applies to tweet text, which is already public).
+
+Classification runs in a slow background sweep (one tweet every ~8 seconds)
+rather than inline as tweets are ingested or all at once - this both keeps
+live polling/backfill fast and stays safely under Gemini's free-tier rate
+limit even if there's a large backlog to work through. Demo tweets are never
+classified, so demo mode never touches the API.
+
+Leave `GEMINI_API_KEY` blank to disable sentiment analysis entirely - the
+meter, chart, and badges simply don't appear.
 
 #### Database (optional, for persistence across redeploys)
 

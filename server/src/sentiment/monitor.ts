@@ -3,8 +3,13 @@ import { getUnclassifiedTweets, setTweetSentiment } from "../db/index.js";
 import type { Sentiment } from "../types.js";
 import { classifySentiment } from "./classify.js";
 
-const SWEEP_INTERVAL_MS = 5_000;
-const BATCH_SIZE = 5;
+// Gemini's free tier caps requests per minute in the low double digits (and
+// this can change - check your Google AI Studio console for the current
+// limit). One classification every 8s (~7.5/min) stays comfortably under
+// that with room to spare, while still clearing a backlog of thousands of
+// tweets per day.
+const SWEEP_INTERVAL_MS = 8_000;
+const BATCH_SIZE = 1;
 
 export type SentimentHandler = (id: string, sentiment: Sentiment) => void;
 
@@ -21,11 +26,11 @@ async function sweepOnce(onSentiment: SentimentHandler): Promise<void> {
 /**
  * Runs as a background sweep over already-stored tweets rather than
  * classifying inline as each tweet is ingested - this keeps historical
- * backfill fast and avoids spiking API cost on bursts of mentions.
+ * backfill fast and avoids bursting past the classifier API's rate limit.
  */
 export function startSentimentMonitor(onSentiment: SentimentHandler): void {
-  if (!config.anthropicApiKey) {
-    console.log("[sentiment] ANTHROPIC_API_KEY not set - sentiment classification disabled");
+  if (!config.geminiApiKey) {
+    console.log("[sentiment] GEMINI_API_KEY not set - sentiment classification disabled");
     return;
   }
 
