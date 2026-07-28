@@ -1,26 +1,40 @@
 import { config } from "../config.js";
 import { getUnclassifiedTweets, setTweetSentiment } from "../db/index.js";
 import type { Sentiment } from "../types.js";
-import { classifySentiment } from "./classify.js";
+import { classifySentiment, getLastClassifyError } from "./classify.js";
 
-// Gemini's free tier caps requests per minute in the low double digits (and
-// this can change - check your Google AI Studio console for the current
-// limit). One classification every 8s (~7.5/min) stays comfortably under
-// that with room to spare, while still clearing a backlog of thousands of
-// tweets per day.
+// Gemini's actual free-tier daily quota varies by account/project and can be
+// far lower than public docs suggest (some accounts see as little as 20
+// requests/day for gemini-2.5-flash-lite) - check GET
+// /api/admin/sentiment-debug for what your account is really allowed. One
+// classification every 8s is fine for a per-minute limit, but useless
+// against a daily cap, hence the exponential backoff below: once we hit a
+// quota error, retrying every 8s would just burn through tomorrow's quota
+// today on guaranteed-to-fail attempts.
 const SWEEP_INTERVAL_MS = 8_000;
+const MAX_BACKOFF_MS = 30 * 60_000;
 const BATCH_SIZE = 1;
 
 export type SentimentHandler = (id: string, sentiment: Sentiment) => void;
 
-async function sweepOnce(onSentiment: SentimentHandler): Promise<void> {
+function isQuotaError(message: string): boolean {
+  return /RESOURCE_EXHAUSTED|quota/i.test(message);
+}
+
+/** Returns true if a quota error was hit, so the caller can back off. */
+async function sweepOnce(onSentiment: SentimentHandler): Promise<boolean> {
   const pending = await getUnclassifiedTweets(BATCH_SIZE);
   for (const tweet of pending) {
     const sentiment = await classifySentiment(tweet.text);
-    if (!sentiment) continue;
+    if (!sentiment) {
+      const err = getLastClassifyError();
+      if (err && isQuotaError(err.message)) return true;
+      continue;
+    }
     await setTweetSentiment(tweet.id, sentiment);
     onSentiment(tweet.id, sentiment);
   }
+  return false;
 }
 
 /**
@@ -34,10 +48,25 @@ export function startSentimentMonitor(onSentiment: SentimentHandler): void {
     return;
   }
 
+  let consecutiveQuotaHits = 0;
+
   const tick = () => {
     sweepOnce(onSentiment)
-      .catch((err) => console.error("[sentiment] sweep failed:", err))
-      .finally(() => setTimeout(tick, SWEEP_INTERVAL_MS));
+      .then((hitQuota) => {
+        if (!hitQuota) {
+          consecutiveQuotaHits = 0;
+          setTimeout(tick, SWEEP_INTERVAL_MS);
+          return;
+        }
+        consecutiveQuotaHits += 1;
+        const backoffMs = Math.min(SWEEP_INTERVAL_MS * 2 ** consecutiveQuotaHits, MAX_BACKOFF_MS);
+        console.log(`[sentiment] Gemini quota exhausted - backing off ${Math.round(backoffMs / 60_000)}m`);
+        setTimeout(tick, backoffMs);
+      })
+      .catch((err) => {
+        console.error("[sentiment] sweep failed:", err);
+        setTimeout(tick, SWEEP_INTERVAL_MS);
+      });
   };
   tick();
 }
