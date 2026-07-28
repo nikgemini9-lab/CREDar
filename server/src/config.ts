@@ -36,6 +36,7 @@ export const config: CredarConfig = {
   cashtag: process.env.CASHTAG ?? DEFAULT_CASHTAG,
   handle: process.env.HANDLE ?? DEFAULT_HANDLE,
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS ?? 30_000),
+  backfillDays: Number(process.env.BACKFILL_DAYS ?? 7),
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN?.trim() || undefined,
   telegramChatId: process.env.TELEGRAM_CHAT_ID?.trim() || undefined,
   corsOrigin: process.env.CORS_ORIGIN ?? "*",

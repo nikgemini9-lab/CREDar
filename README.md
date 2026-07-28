@@ -155,6 +155,13 @@ The defaults match `$CRED` / `@crediblefin` / the CA above. Override with
 `SEARCH_TERMS` (comma-separated, OR'd together) if you want to track
 additional terms.
 
+The first time CREDAR runs (no stored cursor yet), it backfills mentions
+from up to `BACKFILL_DAYS` ago (default `7`) instead of only catching tweets
+posted after that first run - X/Twitter's search only goes back about 7 days
+regardless of this setting, so that's the practical ceiling. After the
+initial catch-up, it resumes from the newest tweet seen on every subsequent
+poll, so nothing is missed between polls or across restarts.
+
 ### 3. Run it
 
 ```bash

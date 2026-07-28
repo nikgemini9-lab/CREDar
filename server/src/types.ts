@@ -77,6 +77,7 @@ export interface CredarConfig {
   cashtag: string;
   handle: string;
   pollIntervalMs: number;
+  backfillDays: number;
   telegramBotToken: string | undefined;
   telegramChatId: string | undefined;
   corsOrigin: string;
