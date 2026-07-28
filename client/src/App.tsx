@@ -6,7 +6,6 @@ import { Header } from "./components/Header";
 import { LiveFeed } from "./components/LiveFeed";
 import { PriceTicker } from "./components/PriceTicker";
 import { SentimentChart } from "./components/SentimentChart";
-import { SentimentMeters } from "./components/SentimentMeters";
 import { StatCards } from "./components/StatCards";
 import { VolumeChart, WeeklyVolumeChart } from "./components/VolumeChart";
 import type { AccountRecord, BigBuyRecord, CredarPublicConfig, Stats, TweetRecord } from "./types";
@@ -54,7 +53,7 @@ export default function App() {
   return (
     <div className="app">
       <Header config={config} connected={connected} />
-      <PriceTicker />
+      <PriceTicker stats={stats} sentimentEnabled={Boolean(config?.sentimentEnabled)} />
       <StatCards stats={stats} />
 
       <div className="grid-main">
@@ -63,7 +62,6 @@ export default function App() {
         <div>
           <VolumeChart stats={stats} />
           <WeeklyVolumeChart stats={stats} />
-          {config?.sentimentEnabled && <SentimentMeters stats={stats} />}
           {config?.sentimentEnabled && <SentimentChart stats={stats} />}
           <BigBuys buys={bigBuys} />
         </div>

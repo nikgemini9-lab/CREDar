@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { api, type TokenPrice } from "../api";
+import type { SentimentMeterWindow, Stats } from "../types";
 
 const POLL_MS = 20_000;
+
+const WINDOW_LABELS: Record<SentimentMeterWindow, string> = {
+  "24h": "24H",
+  "3d": "3D",
+  "7d": "7D",
+};
 
 function formatPrice(price: number): string {
   if (price >= 1) {
@@ -12,7 +19,12 @@ function formatPrice(price: number): string {
   return `$${price.toFixed(decimals)}`;
 }
 
-export function PriceTicker() {
+interface Props {
+  stats: Stats | null;
+  sentimentEnabled: boolean;
+}
+
+export function PriceTicker({ stats, sentimentEnabled }: Props) {
   const [price, setPrice] = useState<TokenPrice | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -40,16 +52,38 @@ export function PriceTicker() {
     };
   }, []);
 
+  const meters = stats?.sentimentMeters ?? [];
+
   return (
     <div className="price-ticker">
-      <span className="price-ticker-label">$CRED</span>
-      {price?.priceUsd != null ? (
-        <span className="price-ticker-value">{formatPrice(price.priceUsd)}</span>
-      ) : (
-        <span className="price-ticker-value price-ticker-unavailable">
-          {failed || price ? "price unavailable" : "loading…"}
-        </span>
+      <div className="price-ticker-main">
+        <span className="price-ticker-label">$CRED</span>
+        {price?.priceUsd != null ? (
+          <span className="price-ticker-value">{formatPrice(price.priceUsd)}</span>
+        ) : (
+          <span className="price-ticker-value price-ticker-unavailable">
+            {failed || price ? "price unavailable" : "loading…"}
+          </span>
+        )}
+      </div>
+
+      {sentimentEnabled && meters.length > 0 && (
+        <div className="price-ticker-meters">
+          {meters.map((m) => (
+            <div className="mini-meter" key={m.window}>
+              <div className="mini-meter-head">
+                <span>{WINDOW_LABELS[m.window] ?? m.window}</span>
+                <span>{m.score !== null ? <strong>{m.score}</strong> : "—"}</span>
+              </div>
+              <div className="mini-meter-track">
+                {m.score !== null && <div className="mini-meter-marker" style={{ left: `${m.score}%` }} />}
+              </div>
+              <div className="mini-meter-label">{m.score !== null ? m.label : "No data yet"}</div>
+            </div>
+          ))}
+        </div>
       )}
+
       <span className="price-ticker-source">live via Jupiter</span>
     </div>
   );
