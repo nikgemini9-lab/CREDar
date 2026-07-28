@@ -240,11 +240,20 @@ export async function insertTweet(tweet: TweetRecord, isDemo: boolean): Promise<
   });
 }
 
-// Demo tweets are excluded so classifying synthetic data never burns API cost.
+// Demo tweets are excluded so classifying synthetic data never burns API
+// cost. Candidates are also bounded to the most recent
+// config.sentimentWindowSize real tweets overall - free-tier classifier
+// quotas can be too low to ever work through a full backlog, so anything
+// older than that rolling window is intentionally left unclassified rather
+// than endlessly queued.
 export async function getUnclassifiedTweets(limit = 5): Promise<{ id: string; text: string }[]> {
   const rs = await client.execute({
-    sql: "SELECT id, text FROM tweets WHERE sentiment IS NULL AND is_demo = 0 ORDER BY discovered_at DESC LIMIT ?",
-    args: [limit],
+    sql: `SELECT id, text FROM (
+            SELECT id, text, sentiment, discovered_at FROM tweets WHERE is_demo = 0
+            ORDER BY discovered_at DESC LIMIT ?
+          ) WHERE sentiment IS NULL
+          LIMIT ?`,
+    args: [config.sentimentWindowSize, limit],
   });
   return rs.rows.map((row) => ({ id: row.id as string, text: row.text as string }));
 }
@@ -258,18 +267,28 @@ export async function setTweetSentiment(id: string, sentiment: Sentiment): Promi
 
 export interface SentimentProgress {
   totalRealTweets: number;
-  classified: number;
-  pending: number;
+  /** Size of the rolling "most recent" window actually considered for classification (config.sentimentWindowSize). */
+  windowSize: number;
+  classifiedInWindow: number;
+  pendingInWindow: number;
 }
 
 export async function getSentimentProgress(): Promise<SentimentProgress> {
-  const [totalRs, classifiedRs] = await Promise.all([
+  const [totalRs, windowRs] = await Promise.all([
     client.execute({ sql: "SELECT COUNT(*) as c FROM tweets WHERE is_demo = 0", args: [] }),
-    client.execute({ sql: "SELECT COUNT(*) as c FROM tweets WHERE is_demo = 0 AND sentiment IS NOT NULL", args: [] }),
+    client.execute({
+      sql: "SELECT sentiment FROM tweets WHERE is_demo = 0 ORDER BY discovered_at DESC LIMIT ?",
+      args: [config.sentimentWindowSize],
+    }),
   ]);
   const totalRealTweets = Number(totalRs.rows[0]?.c ?? 0);
-  const classified = Number(classifiedRs.rows[0]?.c ?? 0);
-  return { totalRealTweets, classified, pending: totalRealTweets - classified };
+  const classifiedInWindow = windowRs.rows.filter((row) => row.sentiment !== null).length;
+  return {
+    totalRealTweets,
+    windowSize: config.sentimentWindowSize,
+    classifiedInWindow,
+    pendingInWindow: windowRs.rows.length - classifiedInWindow,
+  };
 }
 
 export async function upsertAccount(tweet: TweetRecord, isDemo: boolean): Promise<void> {

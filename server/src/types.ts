@@ -113,4 +113,5 @@ export interface CredarConfig {
   bigBuyMinTokens: number;
   adminToken: string | undefined;
   geminiApiKey: string | undefined;
+  sentimentWindowSize: number;
 }

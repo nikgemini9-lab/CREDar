@@ -48,4 +48,10 @@ export const config: CredarConfig = {
   bigBuyMinTokens: Number(process.env.BIG_BUY_MIN_TOKENS ?? 0),
   adminToken: process.env.ADMIN_TOKEN?.trim() || undefined,
   geminiApiKey: process.env.GEMINI_API_KEY?.trim() || undefined,
+  // Free-tier Gemini daily quotas can be as low as ~20 requests/day for some
+  // accounts/projects - rather than trying (and failing) to backfill a
+  // whole tweet history against that, only the most recent N real tweets
+  // are ever considered for classification. Raise this if your account has
+  // a higher quota (check GET /api/admin/sentiment-debug).
+  sentimentWindowSize: Number(process.env.SENTIMENT_WINDOW_SIZE ?? 20),
 };

@@ -166,13 +166,22 @@ free tier, Google may use submitted content to improve their products (this
 only applies to tweet text, which is already public).
 
 Classification runs in a slow background sweep (one tweet every ~8 seconds)
-rather than inline as tweets are ingested or all at once - this both keeps
-live polling/backfill fast and stays safely under Gemini's free-tier rate
-limit even if there's a large backlog to work through. It works through
-*all* stored real tweets, not just new ones, so existing history gets
-classified too - just gradually (a few hundred tweets can take a while at
-one every 8 seconds). Demo tweets are never classified, so demo mode never
-touches the API.
+rather than inline as tweets are ingested or all at once. Some accounts see
+a free-tier daily quota as low as **~20 requests/day** for
+`gemini-2.5-flash-lite` - far too low to ever backfill a large tweet
+history - so rather than endlessly queuing an unreachable backlog, only the
+most recent `SENTIMENT_WINDOW_SIZE` (default `20`) real tweets are ever
+considered for classification. Anything older is intentionally left
+unclassified. Demo tweets are never classified, so demo mode never touches
+the API. On a quota error, the sweep backs off exponentially (up to 30
+minutes) instead of retrying every 8 seconds and burning through the next
+reset's allowance.
+
+If your account has a higher quota (check `GET
+/api/admin/sentiment-debug`), or you've enabled Google Cloud billing for a
+much higher Tier 1 limit (still typically just a few dollars/month at this
+volume, pay-per-token, no subscription), raise `SENTIMENT_WINDOW_SIZE`
+accordingly.
 
 Leave `GEMINI_API_KEY` blank to disable sentiment analysis entirely - the
 meter, chart, and badges simply don't appear.
@@ -189,9 +198,9 @@ https://<your-service>.onrender.com/api/admin/sentiment-debug?token=<your ADMIN_
 This makes one real test call to Gemini and reports whether it actually
 succeeded - not just "is a key configured," but "does it authenticate and
 respond right now" - along with the exact error message if it doesn't (e.g.
-an invalid key, or a rate-limit/quota error), plus how many of your stored
-real tweets are classified vs. still pending, so you can tell backfill
-progress from a genuine failure.
+an invalid key, or a rate-limit/quota error), plus how many tweets within
+the current `SENTIMENT_WINDOW_SIZE` window are classified vs. still
+pending, so you can tell backfill progress from a genuine failure.
 
 #### Database (optional, for persistence across redeploys)
 
