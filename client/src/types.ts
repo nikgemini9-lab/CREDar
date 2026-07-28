@@ -97,4 +97,12 @@ export interface BigBuyRecord {
   counterAmount: number;
   usdValue: number | null;
   platform: string[];
+  isTopHolder: boolean;
+}
+
+export interface TopHolder {
+  walletAddress: string;
+  tokenAmount: number;
+  rank: number;
+  updatedAt: string;
 }

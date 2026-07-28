@@ -35,13 +35,15 @@ export function BigBuys({ buys }: Props) {
         ) : (
           buys.map((buy) => {
             const isSell = buy.side === "sell";
+            const isTopHolderSell = buy.isTopHolder && isSell;
             return (
-              <div className="tweet-card" key={buy.txId}>
+              <div className={`tweet-card${isTopHolderSell ? " top-holder-sell" : ""}`} key={buy.txId}>
                 <div className="tweet-head">
                   <span className="tweet-author">
                     <a href={`https://solscan.io/account/${buy.walletAddress}`} target="_blank" rel="noreferrer">
                       {shortAddress(buy.walletAddress)}
                     </a>
+                    {buy.isTopHolder ? " 🐳" : ""}
                   </span>
                   <span className="tweet-time">{timeAgo(buy.discoveredAt)}</span>
                 </div>
@@ -58,6 +60,11 @@ export function BigBuys({ buys }: Props) {
                     </a>
                   </div>
                   <div className="match-badges">
+                    {isTopHolderSell && (
+                      <span className="match-badge" style={{ background: "var(--status-critical)" }}>
+                        TOP HOLDER
+                      </span>
+                    )}
                     <span
                       className="match-badge"
                       style={{ background: isSell ? "var(--status-critical)" : "var(--status-good)" }}

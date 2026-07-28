@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { AccountRecord, BigBuyRecord, CredarPublicConfig, Sentiment, Stats, TweetRecord } from "./types";
+import type { AccountRecord, BigBuyRecord, CredarPublicConfig, Sentiment, Stats, TopHolder, TweetRecord } from "./types";
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -13,6 +13,11 @@ export interface TokenPrice {
   fetchedAt: string;
 }
 
+export interface TopHoldersResponse {
+  holders: TopHolder[];
+  lastError: string | null;
+}
+
 export const api = {
   tweets: (limit = 50) => getJson<TweetRecord[]>(`/api/tweets?limit=${limit}`),
   accounts: (limit = 20) => getJson<AccountRecord[]>(`/api/accounts?limit=${limit}`),
@@ -20,6 +25,7 @@ export const api = {
   config: () => getJson<CredarPublicConfig>("/api/config"),
   bigBuys: (limit = 50) => getJson<BigBuyRecord[]>(`/api/big-buys?limit=${limit}`),
   price: () => getJson<TokenPrice>("/api/price"),
+  topHolders: () => getJson<TopHoldersResponse>("/api/top-holders"),
 };
 
 type SocketMessage =

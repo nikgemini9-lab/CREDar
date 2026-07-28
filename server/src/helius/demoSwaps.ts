@@ -4,10 +4,16 @@ import type { EnhancedTransaction } from "./types.js";
 const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const POOL = "6VivTuw6ZTDh6xUgWvfhAJqB1nSAWG4mFuk1RJx5eL3W";
 
+// The first 3 match topHolders.ts's DEMO_TOP_HOLDERS list, so demo mode can
+// showcase top-holder-sell alerting - the extra 2 are regular (non-tracked)
+// traders, so a "top holder sold" alert reads as a notable event rather
+// than something that fires on every single sell.
 const WALLETS = [
   "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
   "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1",
   "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+  "3nMBmadYbEMwqNHzXVDGXQF9DhcS3TxMYSaqz2v9UT2H",
+  "BXzT1eYVzMYaGQVwLQEqxq8SnMj5GSK3Zvvn3DwoNsrE",
 ];
 
 let counter = 0;

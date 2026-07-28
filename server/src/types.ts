@@ -75,6 +75,16 @@ export interface BigBuyRecord {
   /** USD value of the swap, when the counter asset is a priceable reference asset (SOL/USDC/USDT). Null otherwise. */
   usdValue: number | null;
   platform: string[];
+  /** True if walletAddress was a tracked top holder at the time this swap was recorded. */
+  isTopHolder: boolean;
+}
+
+export interface TopHolder {
+  walletAddress: string;
+  /** Human-readable $CRED balance. */
+  tokenAmount: number;
+  rank: number;
+  updatedAt: string;
 }
 
 export interface Stats {
@@ -114,4 +124,7 @@ export interface CredarConfig {
   adminToken: string | undefined;
   geminiApiKey: string | undefined;
   sentimentWindowSize: number;
+  solanaRpcUrl: string;
+  topHolderCount: number;
+  topHolderRefreshMs: number;
 }

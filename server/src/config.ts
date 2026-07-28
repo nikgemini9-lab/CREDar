@@ -54,4 +54,11 @@ export const config: CredarConfig = {
   // are ever considered for classification. Raise this if your account has
   // a higher quota (check GET /api/admin/sentiment-debug).
   sentimentWindowSize: Number(process.env.SENTIMENT_WINDOW_SIZE ?? 20),
+  // Public, free, no API key required - fine for the light, infrequent
+  // (every ~15 min) calls this feature makes. Point this at your own Helius
+  // RPC URL (https://mainnet.helius-rpc.com/?api-key=<your key>, from the
+  // same Helius account used for webhooks) for more reliable service.
+  solanaRpcUrl: process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com",
+  topHolderCount: Number(process.env.TOP_HOLDER_COUNT ?? 15),
+  topHolderRefreshMs: Number(process.env.TOP_HOLDER_REFRESH_MS ?? 15 * 60_000),
 };

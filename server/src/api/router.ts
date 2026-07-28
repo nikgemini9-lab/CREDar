@@ -4,6 +4,7 @@ import { clearMeta, getRecentBigBuys, getRecentTweets, getSentimentProgress, get
 import type { BigBuyHandler } from "../helius/monitor.js";
 import { getWebhookDebugState, processTransaction, recordWebhookAuthFailure } from "../helius/monitor.js";
 import { getTokenPriceUsd } from "../helius/price.js";
+import { getLastTopHoldersError, getTopHolders } from "../helius/topHolders.js";
 import type { EnhancedTransaction } from "../helius/types.js";
 import { LAST_SEEN_ID_KEY } from "../monitor/monitor.js";
 import { getLastClassifyError, pingGemini } from "../sentiment/classify.js";
@@ -61,6 +62,14 @@ export function createApiRouter(onBigBuy: BigBuyHandler): Router {
         priceUsd: priceUsd ?? null,
         fetchedAt: new Date().toISOString(),
       });
+    }),
+  );
+
+  apiRouter.get(
+    "/top-holders",
+    asyncHandler(async (_req, res) => {
+      const holders = await getTopHolders();
+      res.json({ holders, lastError: getLastTopHoldersError() ?? null });
     }),
   );
 

@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import type { BigBuyRecord } from "../types.js";
 import { getSolPriceUsd } from "./price.js";
+import { isTopHolderWallet } from "./topHolders.js";
 import type { EnhancedTransaction } from "./types.js";
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
@@ -83,6 +84,8 @@ export async function parseSwap(tx: EnhancedTransaction): Promise<BigBuyRecord |
     usdValue = counterAmount;
   }
 
+  const isTopHolder = await isTopHolderWallet(wallet);
+
   return {
     txId: tx.signature,
     blockTime: new Date((tx.timestamp ?? Date.now() / 1000) * 1000).toISOString(),
@@ -95,12 +98,15 @@ export async function parseSwap(tx: EnhancedTransaction): Promise<BigBuyRecord |
     counterAmount,
     usdValue,
     platform: tx.source ? [tx.source] : [],
+    isTopHolder,
   };
 }
 
 // Same threshold applies to both sides - a big sell is exactly as newsworthy
-// as a big buy of the same size.
+// as a big buy of the same size. A top holder selling at all clears the bar
+// regardless of size - that's the whole point of tracking them.
 export function isBigEnough(buy: BigBuyRecord): boolean {
+  if (buy.isTopHolder && buy.side === "sell") return true;
   if (buy.usdValue !== null) return buy.usdValue >= config.bigBuyMinUsd;
   return config.bigBuyMinTokens > 0 && buy.tokenAmount >= config.bigBuyMinTokens;
 }

@@ -8,6 +8,7 @@ import { createApiRouter } from "./api/router.js";
 import { config } from "./config.js";
 import { initDb } from "./db/index.js";
 import { startChainMonitor } from "./helius/monitor.js";
+import { startTopHoldersMonitor } from "./helius/topHolders.js";
 import { startMonitor } from "./monitor/monitor.js";
 import { startSentimentMonitor } from "./sentiment/monitor.js";
 import { sendBigBuyAlert, sendTelegramAlert } from "./telegram/telegram.js";
@@ -15,6 +16,7 @@ import { attachWebSocketHub, broadcast } from "./ws/hub.js";
 
 async function main() {
   await initDb();
+  await startTopHoldersMonitor();
 
   const onBigBuy = async (buy: Parameters<typeof sendBigBuyAlert>[0]) => {
     broadcast("bigBuy", buy);

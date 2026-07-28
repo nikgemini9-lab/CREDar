@@ -16,8 +16,10 @@ sentiment meter and charted over the last 7 days.
 
 CREDAR also watches the contract address on-chain (Solana) for **big buys and
 sells** — swaps above a USD threshold, whether traded directly on a DEX or
-routed through an aggregator like Jupiter — and alerts on those too. The
-dashboard also shows $CRED's live USD price (via Jupiter's price API).
+routed through an aggregator like Jupiter — and alerts on those too. It also
+tracks the current largest $CRED wallets and **alerts on any sell from one of
+them, regardless of size**. The dashboard also shows $CRED's live USD price
+(via Jupiter's price API).
 
 Search is done via [**Rettiwt-API**](https://github.com/Rishikant181/Rettiwt-API)
 (an unofficial, cookie-authenticated X/Twitter client) instead of the paid
@@ -32,11 +34,14 @@ server/   Node.js + TypeScript backend
   - receives a webhook from Helius on every SWAP involving the contract
     address, flags buys/sells above a USD threshold as "big" trades
   - fetches $CRED's live USD price from Jupiter's price API
+  - tracks the current largest $CRED wallets via a Solana RPC call, and
+    flags/alerts on any sell from one of them regardless of size
   - stores everything in SQLite - a local file by default, or a free remote
     libSQL/Turso database for storage that survives redeploys (via @libsql/client)
   - tracks a per-account mention leaderboard
   - broadcasts new matches/big-trades over a WebSocket
-  - sends a Telegram alert for every match and every big buy/sell
+  - sends a Telegram alert for every match, every big buy/sell, and every
+    top-holder sell
   - classifies each real tweet's sentiment via the Gemini API in a background
     sweep (bullish/positive/negative/fud), broadcast over the WebSocket too
   - exposes a small REST API for the dashboard
@@ -47,7 +52,9 @@ client/   Vite + React + TypeScript dashboard
   - live sentiment meter (24h/3d/7d gauge scores, Fear & Greed Index style)
   - tracked-accounts leaderboard (front and center - mentions happen far
     more often than big trades)
-  - live feed of big buys/sells, with tx/wallet links to Solscan's explorer
+  - top-holders leaderboard
+  - live feed of big buys/sells, with tx/wallet links to Solscan's explorer -
+    top-holder sells are visually highlighted
   - stat cards (total tracked, unique accounts, last hour / 24h / 7d)
   - 24h and 7-day mention-volume charts + match-type breakdown
   - 7-day sentiment chart (stacked bullish/positive/negative/fud)
@@ -139,6 +146,29 @@ as `SWAP` transactions in Helius, so both are covered.
 
 Leave `HELIUS_WEBHOOK_AUTH_HEADER` blank to run big-buy detection in demo mode
 with synthetic swaps instead.
+
+#### Top holders (free, on by default)
+
+CREDAR keeps a live snapshot of the largest $CRED wallets, and **any sell
+from one of them alerts/shows up on the dashboard regardless of size** -
+even a small sell from a top holder is worth knowing about, unlike a random
+wallet's routine trade.
+
+This works out of the box with no setup: it calls Solana's public RPC
+(`getTokenLargestAccounts`, then resolves each token account's owning
+wallet), refreshed every 15 minutes. Liquidity-pool/DEX-vault accounts are
+automatically excluded - only program-derived addresses (PDAs) can own a
+pool's tokens, and a PDA can be reliably told apart from a real wallet by
+checking whether its address lies on the ed25519 curve (real wallets always
+do; PDAs never do). Without this filter, the pool itself would show up as
+"the top holder selling" on every single buy.
+
+The public RPC endpoint is rate-limited and not meant for heavy production
+use, but the light, infrequent calls this feature makes are well within
+reason. For more reliable service, set `SOLANA_RPC_URL` to your own Helius
+RPC URL (`https://mainnet.helius-rpc.com/?api-key=<key>`, using the same
+Helius account/key you already have from the webhook setup above - no new
+signup needed).
 
 #### Sentiment analysis (optional, free)
 
@@ -354,6 +384,7 @@ health check path `/api/health`, plan free.
 | `GET /api/accounts` | Account leaderboard by mention count (`?limit=`) |
 | `GET /api/stats`    | Totals, hourly/daily volume, match + sentiment breakdown |
 | `GET /api/price`    | Live $CRED/USD price (via Jupiter)           |
+| `GET /api/top-holders` | Current largest $CRED wallets (via Solana RPC) |
 | `GET /api/config`   | Public config (tracked terms, alert status)  |
 | `WS /ws`            | Live push of each newly discovered post/big buy/sell/sentiment |
 | `POST /api/webhooks/helius` | Helius webhook delivery target (see setup above) |

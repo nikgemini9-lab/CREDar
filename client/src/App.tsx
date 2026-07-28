@@ -7,6 +7,7 @@ import { LiveFeed } from "./components/LiveFeed";
 import { PriceTicker } from "./components/PriceTicker";
 import { SentimentChart } from "./components/SentimentChart";
 import { StatCards } from "./components/StatCards";
+import { TopHolders } from "./components/TopHolders";
 import { VolumeChart, WeeklyVolumeChart } from "./components/VolumeChart";
 import type { AccountRecord, BigBuyRecord, CredarPublicConfig, Stats, TweetRecord } from "./types";
 
@@ -63,6 +64,7 @@ export default function App() {
           <VolumeChart stats={stats} />
           <WeeklyVolumeChart stats={stats} />
           {config?.sentimentEnabled && <SentimentChart stats={stats} />}
+          <TopHolders />
           <BigBuys buys={bigBuys} />
         </div>
       </div>

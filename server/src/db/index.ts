@@ -14,6 +14,7 @@ import type {
   Stats,
   StatsBucket,
   SwapSide,
+  TopHolder,
   TweetRecord,
 } from "../types.js";
 
@@ -92,6 +93,13 @@ export async function initDb(): Promise<void> {
     );
 
     CREATE INDEX IF NOT EXISTS idx_big_buys_discovered_at ON big_buys(discovered_at DESC);
+
+    CREATE TABLE IF NOT EXISTS top_holders (
+      wallet_address TEXT PRIMARY KEY,
+      token_amount REAL NOT NULL,
+      rank INTEGER NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 
   // Added after the initial release - CREATE TABLE IF NOT EXISTS doesn't add
@@ -106,6 +114,7 @@ export async function initDb(): Promise<void> {
   await addColumnIfMissing("big_buys", "is_demo", "INTEGER NOT NULL DEFAULT 0");
   // Nullable: null means "not yet classified" (or ANTHROPIC_API_KEY isn't set).
   await addColumnIfMissing("tweets", "sentiment", "TEXT");
+  await addColumnIfMissing("big_buys", "is_top_holder", "INTEGER NOT NULL DEFAULT 0");
 
   await client.execute("UPDATE tweets SET is_demo = 1 WHERE id LIKE 'demo-%' AND is_demo = 0");
   await client.execute("UPDATE big_buys SET is_demo = 1 WHERE tx_id LIKE 'demo-swap-%' AND is_demo = 0");
@@ -167,6 +176,16 @@ function rowToBigBuy(row: Record<string, unknown>): BigBuyRecord {
     counterAmount: row.counter_amount as number,
     usdValue: (row.usd_value as number | null) ?? null,
     platform: JSON.parse(row.platform as string) as string[],
+    isTopHolder: Boolean(row.is_top_holder),
+  };
+}
+
+function rowToTopHolder(row: Record<string, unknown>): TopHolder {
+  return {
+    walletAddress: row.wallet_address as string,
+    tokenAmount: row.token_amount as number,
+    rank: row.rank as number,
+    updatedAt: row.updated_at as string,
   };
 }
 
@@ -179,8 +198,8 @@ export async function insertBigBuy(buy: BigBuyRecord, isDemo: boolean): Promise<
   await client.execute({
     sql: `INSERT OR IGNORE INTO big_buys
       (tx_id, block_time, discovered_at, side, wallet_address, token_amount,
-       counter_symbol, counter_address, counter_amount, usd_value, platform, is_demo)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       counter_symbol, counter_address, counter_amount, usd_value, platform, is_demo, is_top_holder)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       buy.txId,
       buy.blockTime,
@@ -194,6 +213,7 @@ export async function insertBigBuy(buy: BigBuyRecord, isDemo: boolean): Promise<
       buy.usdValue,
       JSON.stringify(buy.platform),
       isDemo ? 1 : 0,
+      buy.isTopHolder ? 1 : 0,
     ],
   });
 }
@@ -204,6 +224,28 @@ export async function getRecentBigBuys(limit = 50, isDemo = config.chainDemoMode
     args: [isDemo ? 1 : 0, limit],
   });
   return rs.rows.map((row) => rowToBigBuy(row as unknown as Record<string, unknown>));
+}
+
+export async function isTopHolderWallet(wallet: string): Promise<boolean> {
+  const rs = await client.execute({ sql: "SELECT 1 FROM top_holders WHERE wallet_address = ?", args: [wallet] });
+  return rs.rows.length > 0;
+}
+
+export async function getTopHolders(): Promise<TopHolder[]> {
+  const rs = await client.execute({ sql: "SELECT * FROM top_holders ORDER BY rank ASC", args: [] });
+  return rs.rows.map((row) => rowToTopHolder(row as unknown as Record<string, unknown>));
+}
+
+/** Fully replaces the top-holders snapshot - this is "current state," not a history log. */
+export async function replaceTopHolders(holders: Omit<TopHolder, "updatedAt">[]): Promise<void> {
+  const updatedAt = new Date().toISOString();
+  await client.batch([
+    { sql: "DELETE FROM top_holders", args: [] },
+    ...holders.map((h) => ({
+      sql: "INSERT INTO top_holders (wallet_address, token_amount, rank, updated_at) VALUES (?, ?, ?, ?)",
+      args: [h.walletAddress, h.tokenAmount, h.rank, updatedAt],
+    })),
+  ]);
 }
 
 export async function tweetExists(id: string): Promise<boolean> {
