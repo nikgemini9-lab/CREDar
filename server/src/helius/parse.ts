@@ -21,13 +21,18 @@ function netTokenAmountForWallet(tx: EnhancedTransaction, mint: string, wallet: 
   return net;
 }
 
+// A trader's SOL side of a swap can show up as a native lamport transfer, a
+// wrapped-SOL (WSOL) SPL token transfer, or both within the same
+// transaction (e.g. wrap-then-swap) - Jupiter-routed swaps commonly use
+// WSOL rather than native SOL, so both must be added together or those
+// swaps are silently priced as "unknown".
 function netSolForWallet(tx: EnhancedTransaction, wallet: string): number {
   let netLamports = 0;
   for (const t of tx.nativeTransfers ?? []) {
     if (t.toUserAccount === wallet) netLamports += t.amount;
     if (t.fromUserAccount === wallet) netLamports -= t.amount;
   }
-  return netLamports / 1e9;
+  return netLamports / 1e9 + netTokenAmountForWallet(tx, SOL_MINT, wallet);
 }
 
 /**

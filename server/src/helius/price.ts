@@ -20,10 +20,11 @@ export async function getTokenPriceUsd(mint: string): Promise<number | undefined
     if (!res.ok) throw new Error(`Jupiter price API -> ${res.status}`);
 
     const body = (await res.json()) as Record<string, unknown>;
-    // Defensive: Jupiter's price API has changed response shape across
-    // versions (nested under `data`, or flat). Try both.
+    // Price API v3 keys the response by mint at the top level (no `data`
+    // wrapper) and the price field is `usdPrice` - NOT `price` (that was an
+    // older API version's field name and doesn't exist in v3 responses).
     const entry = (body.data as Record<string, unknown> | undefined)?.[mint] ?? body[mint];
-    const price = Number((entry as { price?: number | string } | undefined)?.price);
+    const price = Number((entry as { usdPrice?: number | string } | undefined)?.usdPrice);
 
     if (!Number.isFinite(price)) throw new Error("unexpected response shape");
 
