@@ -39,9 +39,10 @@ function formatBigBuyAlert(buy: BigBuyRecord): string {
     buy.usdValue !== null
       ? `$${buy.usdValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
       : `${buy.tokenAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })} $CRED`;
+  const verb = buy.side === "sell" ? "sell" : "buy";
 
   return [
-    `🐋 <b>Big buy on $CRED</b> — ${sizeLabel}`,
+    `🐋 <b>Big ${verb} on $CRED</b> — ${sizeLabel}`,
     `${buy.tokenAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} $CRED for ${buy.counterAmount.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${escapeHtml(buy.counterSymbol)}`,
     `Wallet: <code>${shortAddress(buy.walletAddress)}</code>`,
     buy.platform.length > 0 ? `Via: ${escapeHtml(buy.platform.join(", "))}` : "",

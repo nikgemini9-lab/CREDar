@@ -4,6 +4,7 @@ import { AccountLeaderboard } from "./components/AccountLeaderboard";
 import { BigBuys } from "./components/BigBuys";
 import { Header } from "./components/Header";
 import { LiveFeed } from "./components/LiveFeed";
+import { PriceTicker } from "./components/PriceTicker";
 import { SentimentChart } from "./components/SentimentChart";
 import { StatCards } from "./components/StatCards";
 import { VolumeChart, WeeklyVolumeChart } from "./components/VolumeChart";
@@ -52,16 +53,17 @@ export default function App() {
   return (
     <div className="app">
       <Header config={config} connected={connected} />
+      <PriceTicker />
       <StatCards stats={stats} />
 
       <div className="grid-main">
         <LiveFeed tweets={tweets} />
-        <BigBuys buys={bigBuys} />
+        <AccountLeaderboard accounts={accounts} />
         <div>
           <VolumeChart stats={stats} />
           <WeeklyVolumeChart stats={stats} />
           {config?.sentimentEnabled && <SentimentChart stats={stats} />}
-          <AccountLeaderboard accounts={accounts} />
+          <BigBuys buys={bigBuys} />
         </div>
       </div>
 

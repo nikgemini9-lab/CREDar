@@ -3,6 +3,7 @@ import { config } from "../config.js";
 import { clearMeta, getRecentBigBuys, getRecentTweets, getStats, getTopAccounts } from "../db/index.js";
 import type { BigBuyHandler } from "../helius/monitor.js";
 import { processTransaction } from "../helius/monitor.js";
+import { getTokenPriceUsd } from "../helius/price.js";
 import type { EnhancedTransaction } from "../helius/types.js";
 import { LAST_SEEN_ID_KEY } from "../monitor/monitor.js";
 
@@ -47,6 +48,18 @@ export function createApiRouter(onBigBuy: BigBuyHandler): Router {
     asyncHandler(async (req, res) => {
       const limit = Math.min(Number(req.query.limit) || 50, 200);
       res.json(await getRecentBigBuys(limit));
+    }),
+  );
+
+  apiRouter.get(
+    "/price",
+    asyncHandler(async (_req, res) => {
+      const priceUsd = await getTokenPriceUsd(config.contractAddress);
+      res.json({
+        mint: config.contractAddress,
+        priceUsd: priceUsd ?? null,
+        fetchedAt: new Date().toISOString(),
+      });
     }),
   );
 

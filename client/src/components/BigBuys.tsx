@@ -28,40 +28,47 @@ function formatSize(buy: BigBuyRecord): string {
 export function BigBuys({ buys }: Props) {
   return (
     <div className="panel">
-      <h3 className="panel-title">Big buys on-chain</h3>
+      <h3 className="panel-title">Big buys &amp; sells on-chain</h3>
       <div className="feed-list">
         {buys.length === 0 ? (
-          <div className="empty-state">No big buys detected yet.</div>
+          <div className="empty-state">No big trades detected yet.</div>
         ) : (
-          buys.map((buy) => (
-            <div className="tweet-card" key={buy.txId}>
-              <div className="tweet-head">
-                <span className="tweet-author">
-                  <a href={`https://solscan.io/account/${buy.walletAddress}`} target="_blank" rel="noreferrer">
-                    {shortAddress(buy.walletAddress)}
-                  </a>
-                </span>
-                <span className="tweet-time">{timeAgo(buy.discoveredAt)}</span>
-              </div>
-              <p className="tweet-text">
-                Bought <strong style={{ color: "var(--text-primary)" }}>{formatSize(buy)}</strong> worth of $CRED
-                for {buy.counterAmount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {buy.counterSymbol}
-                {buy.platform.length > 0 ? ` via ${buy.platform.join(", ")}` : ""}
-              </p>
-              <div className="tweet-foot">
-                <div className="tweet-metrics">
-                  <a href={`https://solscan.io/tx/${buy.txId}`} target="_blank" rel="noreferrer">
-                    view tx ↗
-                  </a>
-                </div>
-                <div className="match-badges">
-                  <span className="match-badge" style={{ background: "var(--series-contract)" }}>
-                    BUY
+          buys.map((buy) => {
+            const isSell = buy.side === "sell";
+            return (
+              <div className="tweet-card" key={buy.txId}>
+                <div className="tweet-head">
+                  <span className="tweet-author">
+                    <a href={`https://solscan.io/account/${buy.walletAddress}`} target="_blank" rel="noreferrer">
+                      {shortAddress(buy.walletAddress)}
+                    </a>
                   </span>
+                  <span className="tweet-time">{timeAgo(buy.discoveredAt)}</span>
+                </div>
+                <p className="tweet-text">
+                  {isSell ? "Sold" : "Bought"}{" "}
+                  <strong style={{ color: "var(--text-primary)" }}>{formatSize(buy)}</strong> worth of $CRED for{" "}
+                  {buy.counterAmount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {buy.counterSymbol}
+                  {buy.platform.length > 0 ? ` via ${buy.platform.join(", ")}` : ""}
+                </p>
+                <div className="tweet-foot">
+                  <div className="tweet-metrics">
+                    <a href={`https://solscan.io/tx/${buy.txId}`} target="_blank" rel="noreferrer">
+                      view tx ↗
+                    </a>
+                  </div>
+                  <div className="match-badges">
+                    <span
+                      className="match-badge"
+                      style={{ background: isSell ? "var(--status-critical)" : "var(--status-good)" }}
+                    >
+                      {isSell ? "SELL" : "BUY"}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

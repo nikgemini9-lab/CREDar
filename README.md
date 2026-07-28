@@ -13,9 +13,10 @@ Every matching post is logged, shown live on a dashboard, tracked per-account
 Each real post is also classified by sentiment - **bullish, positive,
 negative, or FUD** - via the Claude API, and charted over the last 7 days.
 
-CREDAR also watches the contract address on-chain (Solana) for **big buys** —
-swaps where someone acquires a large amount of $CRED, whether traded directly
-on a DEX or routed through an aggregator like Jupiter — and alerts on those too.
+CREDAR also watches the contract address on-chain (Solana) for **big buys and
+sells** — swaps above a USD threshold, whether traded directly on a DEX or
+routed through an aggregator like Jupiter — and alerts on those too. The
+dashboard also shows $CRED's live USD price (via Jupiter's price API).
 
 Search is done via [**Rettiwt-API**](https://github.com/Rishikant181/Rettiwt-API)
 (an unofficial, cookie-authenticated X/Twitter client) instead of the paid
@@ -28,23 +29,26 @@ official X API. On-chain activity is delivered via a **Helius webhook**
 server/   Node.js + TypeScript backend
   - polls X/Twitter via rettiwt-api's tweet.stream()
   - receives a webhook from Helius on every SWAP involving the contract
-    address, flags buys above a USD threshold as "big buys"
+    address, flags buys/sells above a USD threshold as "big" trades
+  - fetches $CRED's live USD price from Jupiter's price API
   - stores everything in SQLite - a local file by default, or a free remote
     libSQL/Turso database for storage that survives redeploys (via @libsql/client)
   - tracks a per-account mention leaderboard
-  - broadcasts new matches/big-buys over a WebSocket
-  - sends a Telegram alert for every match and every big buy
+  - broadcasts new matches/big-trades over a WebSocket
+  - sends a Telegram alert for every match and every big buy/sell
   - classifies each real tweet's sentiment via the Claude API in a background
     sweep (bullish/positive/negative/fud), broadcast over the WebSocket too
   - exposes a small REST API for the dashboard
 
 client/   Vite + React + TypeScript dashboard
+  - big, prominent live $CRED price ticker
   - live feed of matching posts, with a sentiment badge per tweet
-  - live feed of big buys, with tx/wallet links to Solscan's explorer
+  - tracked-accounts leaderboard (front and center - mentions happen far
+    more often than big trades)
+  - live feed of big buys/sells, with tx/wallet links to Solscan's explorer
   - stat cards (total tracked, unique accounts, last hour / 24h / 7d)
   - 24h and 7-day mention-volume charts + match-type breakdown
   - 7-day sentiment chart (stacked bullish/positive/negative/fud)
-  - tracked-accounts leaderboard
 ```
 
 If no Rettiwt credentials are configured, the server automatically runs tweet
@@ -100,7 +104,7 @@ Leave `RETTIWT_API_KEY` blank to run in demo mode.
 
 Leave both blank to disable Telegram alerts.
 
-#### Helius (on-chain big-buy detection)
+#### Helius (on-chain big-buy/sell detection)
 
 Helius has a genuine free tier (unlike Solscan's Pro API, which is paid-only)
 and pushes events to CREDAR the instant a swap happens, instead of polling.
@@ -120,11 +124,13 @@ and pushes events to CREDAR the instant a swap happens, instead of polling.
 With that set, every SWAP transaction touching the contract address gets
 POSTed to CREDAR, which works out which side of the swap is $CRED and treats
 it as a **buy** whenever the tracked wallet (the transaction's fee payer)
-receives $CRED. Swaps priced in SOL, USDC, or USDT get a real USD value
-(SOL's price comes from Jupiter's free public Price API, cached for a few
-minutes); swaps against anything else fall back to a raw-token-amount
-threshold (`BIG_BUY_MIN_TOKENS`, disabled by default). Adjust the alert
-threshold with `BIG_BUY_MIN_USD` (default `500`).
+receives $CRED, or a **sell** whenever it gives $CRED up. Swaps priced in
+SOL, USDC, or USDT get a real USD value (SOL's price comes from Jupiter's
+free public Price API, cached for a few minutes); swaps against anything
+else fall back to a raw-token-amount threshold (`BIG_BUY_MIN_TOKENS`,
+disabled by default). The same threshold (`BIG_BUY_MIN_USD`, default `500`)
+applies to both buys and sells - a big sell is just as worth flagging as a
+big buy of the same size.
 
 Both direct DEX swaps and aggregator-routed swaps (e.g. via Jupiter) show up
 as `SWAP` transactions in Helius, so both are covered.
@@ -283,10 +289,11 @@ health check path `/api/health`, plan free.
 |------------------|------------------------------------------------|
 | `GET /api/health`   | Liveness + current mode (demo/live)          |
 | `GET /api/tweets`   | Recent matching posts (`?limit=`)            |
-| `GET /api/big-buys` | Recent on-chain big buys (`?limit=`)         |
+| `GET /api/big-buys` | Recent on-chain big buys/sells (`?limit=`)   |
 | `GET /api/accounts` | Account leaderboard by mention count (`?limit=`) |
-| `GET /api/stats`    | Totals, 24h hourly volume, match breakdown   |
+| `GET /api/stats`    | Totals, hourly/daily volume, match + sentiment breakdown |
+| `GET /api/price`    | Live $CRED/USD price (via Jupiter)           |
 | `GET /api/config`   | Public config (tracked terms, alert status)  |
-| `WS /ws`            | Live push of each newly discovered post/big buy |
+| `WS /ws`            | Live push of each newly discovered post/big buy/sell/sentiment |
 | `POST /api/webhooks/helius` | Helius webhook delivery target (see setup above) |
 | `GET /api/admin/reset-tweet-cursor` | Forces a fresh 7-day backfill (`?token=` must match `ADMIN_TOKEN`) |

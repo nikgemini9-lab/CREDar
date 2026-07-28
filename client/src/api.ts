@@ -7,12 +7,19 @@ async function getJson<T>(url: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+export interface TokenPrice {
+  mint: string;
+  priceUsd: number | null;
+  fetchedAt: string;
+}
+
 export const api = {
   tweets: (limit = 50) => getJson<TweetRecord[]>(`/api/tweets?limit=${limit}`),
   accounts: (limit = 20) => getJson<AccountRecord[]>(`/api/accounts?limit=${limit}`),
   stats: () => getJson<Stats>("/api/stats"),
   config: () => getJson<CredarPublicConfig>("/api/config"),
   bigBuys: (limit = 50) => getJson<BigBuyRecord[]>(`/api/big-buys?limit=${limit}`),
+  price: () => getJson<TokenPrice>("/api/price"),
 };
 
 type SocketMessage =

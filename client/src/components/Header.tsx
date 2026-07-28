@@ -31,7 +31,7 @@ export function Header({ config, connected }: Props) {
             </span>
             <span className="term-chip">{config.telegramEnabled ? "TG alerts on" : "TG alerts off"}</span>
             <span className="term-chip">
-              big buys ≥ ${config.bigBuyMinUsd.toLocaleString()}
+              big trades ≥ ${config.bigBuyMinUsd.toLocaleString()}
               {config.chainDemoMode ? " (demo)" : ""}
             </span>
           </div>

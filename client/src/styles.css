@@ -181,6 +181,46 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* ---------- Price ticker ---------- */
+
+.price-ticker {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 24px;
+  margin-bottom: 20px;
+}
+
+.price-ticker-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.price-ticker-value {
+  font-size: 44px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.price-ticker-unavailable {
+  font-size: 20px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.price-ticker-source {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
 /* ---------- Layout ---------- */
 
 .grid-main {

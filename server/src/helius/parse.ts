@@ -93,8 +93,9 @@ export async function parseSwap(tx: EnhancedTransaction): Promise<BigBuyRecord |
   };
 }
 
+// Same threshold applies to both sides - a big sell is exactly as newsworthy
+// as a big buy of the same size.
 export function isBigEnough(buy: BigBuyRecord): boolean {
-  if (buy.side !== "buy") return false;
   if (buy.usdValue !== null) return buy.usdValue >= config.bigBuyMinUsd;
   return config.bigBuyMinTokens > 0 && buy.tokenAmount >= config.bigBuyMinTokens;
 }
