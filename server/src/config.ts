@@ -47,4 +47,5 @@ export const config: CredarConfig = {
   bigBuyMinUsd: Number(process.env.BIG_BUY_MIN_USD ?? 500),
   bigBuyMinTokens: Number(process.env.BIG_BUY_MIN_TOKENS ?? 0),
   adminToken: process.env.ADMIN_TOKEN?.trim() || undefined,
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY?.trim() || undefined,
 };

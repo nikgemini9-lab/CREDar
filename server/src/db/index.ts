@@ -3,7 +3,17 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config.js";
 import { DEMO_TWEET_HANDLES } from "../monitor/demoFeed.js";
-import type { AccountRecord, BigBuyRecord, MatchKind, Stats, StatsBucket, SwapSide, TweetRecord } from "../types.js";
+import type {
+  AccountRecord,
+  BigBuyRecord,
+  MatchKind,
+  Sentiment,
+  SentimentBucket,
+  Stats,
+  StatsBucket,
+  SwapSide,
+  TweetRecord,
+} from "../types.js";
 
 // Local `file:` URLs need their parent directory to exist up front.
 if (config.databaseUrl.startsWith("file:")) {
@@ -92,6 +102,8 @@ export async function initDb(): Promise<void> {
   await addColumnIfMissing("tweets", "is_demo", "INTEGER NOT NULL DEFAULT 0");
   await addColumnIfMissing("accounts", "is_demo", "INTEGER NOT NULL DEFAULT 0");
   await addColumnIfMissing("big_buys", "is_demo", "INTEGER NOT NULL DEFAULT 0");
+  // Nullable: null means "not yet classified" (or ANTHROPIC_API_KEY isn't set).
+  await addColumnIfMissing("tweets", "sentiment", "TEXT");
 
   await client.execute("UPDATE tweets SET is_demo = 1 WHERE id LIKE 'demo-%' AND is_demo = 0");
   await client.execute("UPDATE big_buys SET is_demo = 1 WHERE tx_id LIKE 'demo-swap-%' AND is_demo = 0");
@@ -122,6 +134,7 @@ function rowToTweet(row: Record<string, unknown>): TweetRecord {
     replyCount: row.reply_count as number,
     viewCount: row.view_count as number,
     matches: JSON.parse(row.matches as string) as MatchKind[],
+    sentiment: (row.sentiment as Sentiment | null) ?? null,
   };
 }
 
@@ -225,6 +238,22 @@ export async function insertTweet(tweet: TweetRecord, isDemo: boolean): Promise<
   });
 }
 
+// Demo tweets are excluded so classifying synthetic data never burns API cost.
+export async function getUnclassifiedTweets(limit = 5): Promise<{ id: string; text: string }[]> {
+  const rs = await client.execute({
+    sql: "SELECT id, text FROM tweets WHERE sentiment IS NULL AND is_demo = 0 ORDER BY discovered_at DESC LIMIT ?",
+    args: [limit],
+  });
+  return rs.rows.map((row) => ({ id: row.id as string, text: row.text as string }));
+}
+
+export async function setTweetSentiment(id: string, sentiment: Sentiment): Promise<void> {
+  await client.execute({
+    sql: "UPDATE tweets SET sentiment = ? WHERE id = ?",
+    args: [sentiment, id],
+  });
+}
+
 export async function upsertAccount(tweet: TweetRecord, isDemo: boolean): Promise<void> {
   const existing = await client.execute({
     sql: "SELECT 1 FROM accounts WHERE username = ?",
@@ -308,10 +337,11 @@ export async function getStats(): Promise<Stats> {
         sql: "SELECT COUNT(*) as c FROM tweets WHERE is_demo = ? AND created_at >= ?",
         args: [isDemo, sevenDaysAgo],
       }),
-      // matchBreakdown covers the same 7-day window the charts show, so it
-      // doesn't count mentions older than either graph can display.
+      // matchBreakdown/sentimentBreakdown cover the same 7-day window the
+      // charts show, so they don't count mentions older than either graph
+      // can display.
       client.execute({
-        sql: "SELECT matches, created_at FROM tweets WHERE is_demo = ? AND created_at >= ?",
+        sql: "SELECT matches, created_at, sentiment FROM tweets WHERE is_demo = ? AND created_at >= ?",
         args: [isDemo, sevenDaysAgo],
       }),
       getTopAccounts(5),
@@ -323,12 +353,22 @@ export async function getStats(): Promise<Stats> {
     contract: 0,
     keyword: 0,
   };
+  const sentimentBreakdown: Record<Sentiment, number> = {
+    bullish: 0,
+    positive: 0,
+    negative: 0,
+    fud: 0,
+  };
 
   const hourlyBucketMap = new Map<string, number>();
   const dailyBucketMap = new Map<string, number>();
+  const dailySentimentMap = new Map<string, Record<Sentiment, number>>();
   for (const row of recentTweetsRs.rows) {
     const matches = JSON.parse(row.matches as string) as MatchKind[];
     for (const m of matches) matchBreakdown[m] += 1;
+
+    const sentiment = row.sentiment as Sentiment | null;
+    if (sentiment) sentimentBreakdown[sentiment] += 1;
 
     const createdAt = new Date(row.created_at as string);
 
@@ -341,6 +381,13 @@ export async function getStats(): Promise<Stats> {
     dayBucket.setHours(0, 0, 0, 0);
     const dayKey = dayBucket.toISOString();
     dailyBucketMap.set(dayKey, (dailyBucketMap.get(dayKey) ?? 0) + 1);
+
+    if (sentiment) {
+      if (!dailySentimentMap.has(dayKey)) {
+        dailySentimentMap.set(dayKey, { bullish: 0, positive: 0, negative: 0, fud: 0 });
+      }
+      dailySentimentMap.get(dayKey)![sentiment] += 1;
+    }
   }
 
   const hourlyVolume: StatsBucket[] = [];
@@ -352,11 +399,20 @@ export async function getStats(): Promise<Stats> {
   }
 
   const dailyVolume: StatsBucket[] = [];
+  const dailySentiment: SentimentBucket[] = [];
   for (let i = 6; i >= 0; i--) {
     const bucket = new Date(now - i * 24 * 60 * 60 * 1000);
     bucket.setHours(0, 0, 0, 0);
     const key = bucket.toISOString();
     dailyVolume.push({ bucketStart: key, count: dailyBucketMap.get(key) ?? 0 });
+    const s = dailySentimentMap.get(key);
+    dailySentiment.push({
+      bucketStart: key,
+      bullish: s?.bullish ?? 0,
+      positive: s?.positive ?? 0,
+      negative: s?.negative ?? 0,
+      fud: s?.fud ?? 0,
+    });
   }
 
   return {
@@ -368,6 +424,8 @@ export async function getStats(): Promise<Stats> {
     matchBreakdown,
     hourlyVolume,
     dailyVolume,
+    sentimentBreakdown,
+    dailySentiment,
     topAccounts,
   };
 }

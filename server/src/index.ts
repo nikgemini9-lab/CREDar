@@ -9,6 +9,7 @@ import { config } from "./config.js";
 import { initDb } from "./db/index.js";
 import { startChainMonitor } from "./helius/monitor.js";
 import { startMonitor } from "./monitor/monitor.js";
+import { startSentimentMonitor } from "./sentiment/monitor.js";
 import { sendBigBuyAlert, sendTelegramAlert } from "./telegram/telegram.js";
 import { attachWebSocketHub, broadcast } from "./ws/hub.js";
 
@@ -42,6 +43,10 @@ async function main() {
   });
 
   startChainMonitor(onBigBuy);
+
+  startSentimentMonitor((id, sentiment) => {
+    broadcast("sentiment", { id, sentiment });
+  });
 
   server.listen(config.port, () => {
     console.log(`CREDAR server listening on http://localhost:${config.port}`);

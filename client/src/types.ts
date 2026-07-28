@@ -1,5 +1,7 @@
 export type MatchKind = "cashtag" | "mention" | "contract" | "keyword";
 
+export type Sentiment = "bullish" | "positive" | "negative" | "fud";
+
 export interface TweetRecord {
   id: string;
   authorUsername: string;
@@ -17,6 +19,7 @@ export interface TweetRecord {
   replyCount: number;
   viewCount: number;
   matches: MatchKind[];
+  sentiment: Sentiment | null;
 }
 
 export interface AccountRecord {
@@ -36,6 +39,14 @@ export interface StatsBucket {
   count: number;
 }
 
+export interface SentimentBucket {
+  bucketStart: string;
+  bullish: number;
+  positive: number;
+  negative: number;
+  fud: number;
+}
+
 export interface Stats {
   totalTweets: number;
   totalAccounts: number;
@@ -45,6 +56,8 @@ export interface Stats {
   matchBreakdown: Record<MatchKind, number>;
   hourlyVolume: StatsBucket[];
   dailyVolume: StatsBucket[];
+  sentimentBreakdown: Record<Sentiment, number>;
+  dailySentiment: SentimentBucket[];
   topAccounts: AccountRecord[];
 }
 
@@ -57,6 +70,7 @@ export interface CredarPublicConfig {
   telegramEnabled: boolean;
   chainDemoMode: boolean;
   bigBuyMinUsd: number;
+  sentimentEnabled: boolean;
 }
 
 export type SwapSide = "buy" | "sell";

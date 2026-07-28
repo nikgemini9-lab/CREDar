@@ -10,6 +10,8 @@ CREDAR watches X/Twitter in near real-time for posts that:
 
 Every matching post is logged, shown live on a dashboard, tracked per-account
 (a leaderboard of who's talking about $CRED), and pushed as a Telegram alert.
+Each real post is also classified by sentiment - **bullish, positive,
+negative, or FUD** - via the Claude API, and charted over the last 7 days.
 
 CREDAR also watches the contract address on-chain (Solana) for **big buys** —
 swaps where someone acquires a large amount of $CRED, whether traded directly
@@ -32,13 +34,16 @@ server/   Node.js + TypeScript backend
   - tracks a per-account mention leaderboard
   - broadcasts new matches/big-buys over a WebSocket
   - sends a Telegram alert for every match and every big buy
+  - classifies each real tweet's sentiment via the Claude API in a background
+    sweep (bullish/positive/negative/fud), broadcast over the WebSocket too
   - exposes a small REST API for the dashboard
 
 client/   Vite + React + TypeScript dashboard
-  - live feed of matching posts
+  - live feed of matching posts, with a sentiment badge per tweet
   - live feed of big buys, with tx/wallet links to Solscan's explorer
-  - stat cards (total tracked, unique accounts, last hour / 24h)
-  - 24h mention-volume chart + match-type breakdown
+  - stat cards (total tracked, unique accounts, last hour / 24h / 7d)
+  - 24h and 7-day mention-volume charts + match-type breakdown
+  - 7-day sentiment chart (stacked bullish/positive/negative/fud)
   - tracked-accounts leaderboard
 ```
 
@@ -126,6 +131,26 @@ as `SWAP` transactions in Helius, so both are covered.
 
 Leave `HELIUS_WEBHOOK_AUTH_HEADER` blank to run big-buy detection in demo mode
 with synthetic swaps instead.
+
+#### Sentiment analysis (optional)
+
+CREDAR can classify every real (non-demo) tweet's sentiment into **bullish,
+positive, negative, or FUD** using the [Claude API](https://console.anthropic.com),
+and chart the results over the last 7 days.
+
+1. Create an API key at [console.anthropic.com](https://console.anthropic.com).
+2. Put it in `ANTHROPIC_API_KEY` in `server/.env` (or as a Render env var).
+
+Classification runs in a background sweep (every ~5s, a handful of tweets at
+a time) rather than inline as tweets are ingested, so it never slows down
+live polling or historical backfill. It uses `claude-haiku-4-5`, a small/fast
+model, and costs roughly **$0.0004-0.0005 per tweet classified** (a few
+hundred input tokens + a tiny forced tool-call output) - for reference, 150
+mentions/day works out to around $2/month. Demo tweets are never classified,
+so demo mode never incurs API cost.
+
+Leave `ANTHROPIC_API_KEY` blank to disable sentiment analysis entirely - the
+sentiment badges and chart simply don't appear.
 
 #### Database (optional, for persistence across redeploys)
 

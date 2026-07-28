@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { AccountRecord, BigBuyRecord, CredarPublicConfig, Stats, TweetRecord } from "./types";
+import type { AccountRecord, BigBuyRecord, CredarPublicConfig, Sentiment, Stats, TweetRecord } from "./types";
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -18,11 +18,13 @@ export const api = {
 type SocketMessage =
   | { type: "tweet"; payload: TweetRecord }
   | { type: "bigBuy"; payload: BigBuyRecord }
+  | { type: "sentiment"; payload: { id: string; sentiment: Sentiment } }
   | { type: "hello"; payload: unknown };
 
 interface LiveHandlers {
   onTweet?: (tweet: TweetRecord) => void;
   onBigBuy?: (buy: BigBuyRecord) => void;
+  onSentiment?: (id: string, sentiment: Sentiment) => void;
 }
 
 /** Connects to the CREDAR websocket feed and dispatches new tweets/big-buys to the given handlers. */
@@ -51,6 +53,7 @@ export function useCredarSocket(handlers: LiveHandlers): { connected: boolean } 
           const message = JSON.parse(event.data) as SocketMessage;
           if (message.type === "tweet") handlersRef.current.onTweet?.(message.payload);
           if (message.type === "bigBuy") handlersRef.current.onBigBuy?.(message.payload);
+          if (message.type === "sentiment") handlersRef.current.onSentiment?.(message.payload.id, message.payload.sentiment);
         } catch {
           // ignore malformed frames
         }

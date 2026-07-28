@@ -49,6 +49,7 @@ export function toTweetRecord(tweet: TweetLike): TweetRecord {
     replyCount: tweet.replyCount ?? 0,
     viewCount: tweet.viewCount ?? 0,
     matches: classifyMatches(tweet.fullText),
+    sentiment: null,
   };
 }
 

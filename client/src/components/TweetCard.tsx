@@ -1,10 +1,17 @@
-import type { MatchKind, TweetRecord } from "../types";
+import type { MatchKind, Sentiment, TweetRecord } from "../types";
 
 const BADGES: Record<MatchKind, { label: string; color: string }> = {
   cashtag: { label: "$CRED", color: "var(--series-cashtag)" },
   mention: { label: "@crediblefin", color: "var(--series-mention)" },
   contract: { label: "CA", color: "var(--series-contract)" },
   keyword: { label: "keyword", color: "var(--series-keyword)" },
+};
+
+const SENTIMENT_BADGES: Record<Sentiment, { label: string; color: string }> = {
+  bullish: { label: "Bullish", color: "var(--sentiment-bullish)" },
+  positive: { label: "Positive", color: "var(--sentiment-positive)" },
+  negative: { label: "Negative", color: "var(--sentiment-negative)" },
+  fud: { label: "FUD", color: "var(--sentiment-fud)" },
 };
 
 function timeAgo(iso: string): string {
@@ -37,6 +44,11 @@ export function TweetCard({ tweet }: { tweet: TweetRecord }) {
           <span>💬 {tweet.replyCount}</span>
         </div>
         <div className="match-badges">
+          {tweet.sentiment && (
+            <span className="match-badge" style={{ background: SENTIMENT_BADGES[tweet.sentiment].color }}>
+              {SENTIMENT_BADGES[tweet.sentiment].label}
+            </span>
+          )}
           {tweet.matches.map((m) => (
             <span key={m} className="match-badge" style={{ background: BADGES[m].color }}>
               {BADGES[m].label}
