@@ -53,4 +53,22 @@ export interface CredarPublicConfig {
   handle: string;
   contractAddress: string;
   telegramEnabled: boolean;
+  chainDemoMode: boolean;
+  bigBuyMinUsd: number;
+}
+
+export type SwapSide = "buy" | "sell";
+
+export interface BigBuyRecord {
+  txId: string;
+  blockTime: string;
+  discoveredAt: string;
+  side: SwapSide;
+  walletAddress: string;
+  tokenAmount: number;
+  counterSymbol: string;
+  counterAddress: string;
+  counterAmount: number;
+  usdValue: number | null;
+  platform: string[];
 }

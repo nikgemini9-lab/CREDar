@@ -2,7 +2,7 @@ import { createClient } from "@libsql/client";
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config.js";
-import type { AccountRecord, MatchKind, Stats, StatsBucket, TweetRecord } from "../types.js";
+import type { AccountRecord, BigBuyRecord, MatchKind, Stats, StatsBucket, SwapSide, TweetRecord } from "../types.js";
 
 // Local `file:` URLs need their parent directory to exist up front.
 if (config.databaseUrl.startsWith("file:")) {
@@ -55,6 +55,22 @@ export async function initDb(): Promise<void> {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS big_buys (
+      tx_id TEXT PRIMARY KEY,
+      block_time TEXT NOT NULL,
+      discovered_at TEXT NOT NULL,
+      side TEXT NOT NULL,
+      wallet_address TEXT NOT NULL,
+      token_amount REAL NOT NULL,
+      counter_symbol TEXT NOT NULL,
+      counter_address TEXT NOT NULL,
+      counter_amount REAL NOT NULL,
+      usd_value REAL,
+      platform TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_big_buys_discovered_at ON big_buys(discovered_at DESC);
   `);
 }
 
@@ -91,6 +107,57 @@ function rowToAccount(row: Record<string, unknown>): AccountRecord {
     lastSeen: row.last_seen as string,
     mentionCount: row.mention_count as number,
   };
+}
+
+function rowToBigBuy(row: Record<string, unknown>): BigBuyRecord {
+  return {
+    txId: row.tx_id as string,
+    blockTime: row.block_time as string,
+    discoveredAt: row.discovered_at as string,
+    side: row.side as SwapSide,
+    walletAddress: row.wallet_address as string,
+    tokenAmount: row.token_amount as number,
+    counterSymbol: row.counter_symbol as string,
+    counterAddress: row.counter_address as string,
+    counterAmount: row.counter_amount as number,
+    usdValue: (row.usd_value as number | null) ?? null,
+    platform: JSON.parse(row.platform as string) as string[],
+  };
+}
+
+export async function bigBuyExists(txId: string): Promise<boolean> {
+  const rs = await client.execute({ sql: "SELECT 1 FROM big_buys WHERE tx_id = ?", args: [txId] });
+  return rs.rows.length > 0;
+}
+
+export async function insertBigBuy(buy: BigBuyRecord): Promise<void> {
+  await client.execute({
+    sql: `INSERT OR IGNORE INTO big_buys
+      (tx_id, block_time, discovered_at, side, wallet_address, token_amount,
+       counter_symbol, counter_address, counter_amount, usd_value, platform)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      buy.txId,
+      buy.blockTime,
+      buy.discoveredAt,
+      buy.side,
+      buy.walletAddress,
+      buy.tokenAmount,
+      buy.counterSymbol,
+      buy.counterAddress,
+      buy.counterAmount,
+      buy.usdValue,
+      JSON.stringify(buy.platform),
+    ],
+  });
+}
+
+export async function getRecentBigBuys(limit = 50): Promise<BigBuyRecord[]> {
+  const rs = await client.execute({
+    sql: "SELECT * FROM big_buys ORDER BY discovered_at DESC LIMIT ?",
+    args: [limit],
+  });
+  return rs.rows.map((row) => rowToBigBuy(row as unknown as Record<string, unknown>));
 }
 
 export async function tweetExists(id: string): Promise<boolean> {

@@ -30,6 +30,10 @@ export function Header({ config, connected }: Props) {
               CA…{config.contractAddress.slice(-6)}
             </span>
             <span className="term-chip">{config.telegramEnabled ? "TG alerts on" : "TG alerts off"}</span>
+            <span className="term-chip">
+              big buys ≥ ${config.bigBuyMinUsd.toLocaleString()}
+              {config.chainDemoMode ? " (demo)" : ""}
+            </span>
           </div>
         )}
       </div>

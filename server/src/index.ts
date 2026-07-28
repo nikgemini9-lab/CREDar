@@ -8,7 +8,8 @@ import { apiRouter } from "./api/router.js";
 import { config } from "./config.js";
 import { initDb } from "./db/index.js";
 import { startMonitor } from "./monitor/monitor.js";
-import { sendTelegramAlert } from "./telegram/telegram.js";
+import { startChainMonitor } from "./solscan/monitor.js";
+import { sendBigBuyAlert, sendTelegramAlert } from "./telegram/telegram.js";
 import { attachWebSocketHub, broadcast } from "./ws/hub.js";
 
 async function main() {
@@ -35,10 +36,15 @@ async function main() {
     await sendTelegramAlert(tweet);
   });
 
+  startChainMonitor(async (buy) => {
+    broadcast("bigBuy", buy);
+    await sendBigBuyAlert(buy);
+  });
+
   server.listen(config.port, () => {
     console.log(`CREDAR server listening on http://localhost:${config.port}`);
     console.log(`Tracking: ${config.searchTerms.join(" | ")}`);
-    console.log(`Mode: ${config.demoMode ? "DEMO" : "LIVE"}`);
+    console.log(`Mode: ${config.demoMode ? "DEMO" : "LIVE"} (tweets), ${config.chainDemoMode ? "DEMO" : "LIVE"} (chain)`);
   });
 }
 

@@ -1,6 +1,6 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { config } from "../config.js";
-import { getRecentTweets, getStats, getTopAccounts } from "../db/index.js";
+import { getRecentBigBuys, getRecentTweets, getStats, getTopAccounts } from "../db/index.js";
 
 export const apiRouter = Router();
 
@@ -37,6 +37,14 @@ apiRouter.get(
   }),
 );
 
+apiRouter.get(
+  "/big-buys",
+  asyncHandler(async (req, res) => {
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    res.json(await getRecentBigBuys(limit));
+  }),
+);
+
 apiRouter.get("/config", (_req, res) => {
   res.json({
     demoMode: config.demoMode,
@@ -45,5 +53,7 @@ apiRouter.get("/config", (_req, res) => {
     handle: config.handle,
     contractAddress: config.contractAddress,
     telegramEnabled: Boolean(config.telegramBotToken && config.telegramChatId),
+    chainDemoMode: config.chainDemoMode,
+    bigBuyMinUsd: config.bigBuyMinUsd,
   });
 });

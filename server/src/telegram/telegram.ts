@@ -1,5 +1,5 @@
 import { config } from "../config.js";
-import type { TweetRecord } from "../types.js";
+import type { BigBuyRecord, TweetRecord } from "../types.js";
 
 const MATCH_LABELS: Record<string, string> = {
   cashtag: "$CRED",
@@ -15,7 +15,7 @@ function escapeHtml(text: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function formatAlert(tweet: TweetRecord): string {
+function formatTweetAlert(tweet: TweetRecord): string {
   const tags = tweet.matches.map((m) => MATCH_LABELS[m] ?? m).join(", ");
   const excerpt = tweet.text.length > 400 ? `${tweet.text.slice(0, 400)}…` : tweet.text;
 
@@ -30,7 +30,28 @@ function formatAlert(tweet: TweetRecord): string {
   ].join("\n");
 }
 
-export async function sendTelegramAlert(tweet: TweetRecord): Promise<void> {
+function shortAddress(address: string): string {
+  return `${address.slice(0, 4)}…${address.slice(-4)}`;
+}
+
+function formatBigBuyAlert(buy: BigBuyRecord): string {
+  const sizeLabel =
+    buy.usdValue !== null
+      ? `$${buy.usdValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+      : `${buy.tokenAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })} $CRED`;
+
+  return [
+    `🐋 <b>Big buy on $CRED</b> — ${sizeLabel}`,
+    `${buy.tokenAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} $CRED for ${buy.counterAmount.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${escapeHtml(buy.counterSymbol)}`,
+    `Wallet: <code>${shortAddress(buy.walletAddress)}</code>`,
+    buy.platform.length > 0 ? `Via: ${escapeHtml(buy.platform.join(", "))}` : "",
+    `https://solscan.io/tx/${buy.txId}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+async function sendTelegramMessage(text: string): Promise<void> {
   if (!config.telegramBotToken || !config.telegramChatId) return;
 
   const apiUrl = `https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`;
@@ -41,7 +62,7 @@ export async function sendTelegramAlert(tweet: TweetRecord): Promise<void> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: config.telegramChatId,
-        text: formatAlert(tweet),
+        text,
         parse_mode: "HTML",
         disable_web_page_preview: false,
       }),
@@ -54,4 +75,12 @@ export async function sendTelegramAlert(tweet: TweetRecord): Promise<void> {
   } catch (err) {
     console.error("[telegram] failed to send alert:", err);
   }
+}
+
+export async function sendTelegramAlert(tweet: TweetRecord): Promise<void> {
+  await sendTelegramMessage(formatTweetAlert(tweet));
+}
+
+export async function sendBigBuyAlert(buy: BigBuyRecord): Promise<void> {
+  await sendTelegramMessage(formatBigBuyAlert(buy));
 }

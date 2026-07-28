@@ -36,6 +36,26 @@ export interface StatsBucket {
   count: number;
 }
 
+export type SwapSide = "buy" | "sell";
+
+export interface BigBuyRecord {
+  /** Solscan transaction signature. */
+  txId: string;
+  blockTime: string;
+  discoveredAt: string;
+  side: SwapSide;
+  walletAddress: string;
+  /** Human-readable amount of $CRED that changed hands. */
+  tokenAmount: number;
+  /** The asset paid with (buy) or received (sell) on the other side of the swap. */
+  counterSymbol: string;
+  counterAddress: string;
+  counterAmount: number;
+  /** USD value of the swap, when the counter asset is a priceable reference asset (SOL/USDC/USDT). Null otherwise. */
+  usdValue: number | null;
+  platform: string[];
+}
+
 export interface Stats {
   totalTweets: number;
   totalAccounts: number;
@@ -60,4 +80,9 @@ export interface CredarConfig {
   telegramBotToken: string | undefined;
   telegramChatId: string | undefined;
   corsOrigin: string;
+  solscanApiKey: string | undefined;
+  chainDemoMode: boolean;
+  chainPollIntervalMs: number;
+  bigBuyMinUsd: number;
+  bigBuyMinTokens: number;
 }

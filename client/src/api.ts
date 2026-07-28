@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { AccountRecord, CredarPublicConfig, Stats, TweetRecord } from "./types";
+import type { AccountRecord, BigBuyRecord, CredarPublicConfig, Stats, TweetRecord } from "./types";
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -12,15 +12,24 @@ export const api = {
   accounts: (limit = 20) => getJson<AccountRecord[]>(`/api/accounts?limit=${limit}`),
   stats: () => getJson<Stats>("/api/stats"),
   config: () => getJson<CredarPublicConfig>("/api/config"),
+  bigBuys: (limit = 50) => getJson<BigBuyRecord[]>(`/api/big-buys?limit=${limit}`),
 };
 
-type SocketMessage = { type: "tweet"; payload: TweetRecord } | { type: "hello"; payload: unknown };
+type SocketMessage =
+  | { type: "tweet"; payload: TweetRecord }
+  | { type: "bigBuy"; payload: BigBuyRecord }
+  | { type: "hello"; payload: unknown };
 
-/** Connects to the CREDAR websocket feed and invokes `onTweet` for each newly discovered tweet. */
-export function useLiveTweets(onTweet: (tweet: TweetRecord) => void): { connected: boolean } {
+interface LiveHandlers {
+  onTweet?: (tweet: TweetRecord) => void;
+  onBigBuy?: (buy: BigBuyRecord) => void;
+}
+
+/** Connects to the CREDAR websocket feed and dispatches new tweets/big-buys to the given handlers. */
+export function useCredarSocket(handlers: LiveHandlers): { connected: boolean } {
   const [connected, setConnected] = useState(false);
-  const handlerRef = useRef(onTweet);
-  handlerRef.current = onTweet;
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -40,7 +49,8 @@ export function useLiveTweets(onTweet: (tweet: TweetRecord) => void): { connecte
       socket.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data) as SocketMessage;
-          if (message.type === "tweet") handlerRef.current(message.payload);
+          if (message.type === "tweet") handlersRef.current.onTweet?.(message.payload);
+          if (message.type === "bigBuy") handlersRef.current.onBigBuy?.(message.payload);
         } catch {
           // ignore malformed frames
         }
