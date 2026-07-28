@@ -10,6 +10,7 @@ export function StatCards({ stats }: Props) {
     { label: "Unique accounts", value: stats?.totalAccounts ?? 0 },
     { label: "Last hour", value: stats?.tweetsLastHour ?? 0 },
     { label: "Last 24h", value: stats?.tweetsLast24h ?? 0 },
+    { label: "Last 7d", value: stats?.tweetsLast7d ?? 0 },
   ];
 
   return (

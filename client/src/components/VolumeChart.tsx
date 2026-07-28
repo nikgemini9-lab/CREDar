@@ -1,8 +1,4 @@
-import type { MatchKind, Stats } from "../types";
-
-interface Props {
-  stats: Stats | null;
-}
+import type { MatchKind, Stats, StatsBucket } from "../types";
 
 const LEGEND: { key: MatchKind; label: string; color: string }[] = [
   { key: "cashtag", label: "$CRED cashtag", color: "var(--series-cashtag)" },
@@ -11,18 +7,19 @@ const LEGEND: { key: MatchKind; label: string; color: string }[] = [
   { key: "keyword", label: "Other tracked term", color: "var(--series-keyword)" },
 ];
 
-function formatHour(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+interface MentionVolumeChartProps {
+  title: string;
+  buckets: StatsBucket[];
+  formatLabel: (iso: string) => string;
+  matchBreakdown?: Record<MatchKind, number>;
 }
 
-export function VolumeChart({ stats }: Props) {
-  const buckets = stats?.hourlyVolume ?? [];
+export function MentionVolumeChart({ title, buckets, formatLabel, matchBreakdown }: MentionVolumeChartProps) {
   const max = Math.max(1, ...buckets.map((b) => b.count));
 
   return (
     <div className="panel">
-      <h3 className="panel-title">Mention volume — last 24h</h3>
+      <h3 className="panel-title">{title}</h3>
 
       {buckets.length === 0 ? (
         <div className="empty-state">Waiting for data…</div>
@@ -32,7 +29,7 @@ export function VolumeChart({ stats }: Props) {
             {buckets.map((bucket) => (
               <div className="chart-bar-col" key={bucket.bucketStart}>
                 <div className="chart-tooltip">
-                  {bucket.count} · {formatHour(bucket.bucketStart)}
+                  {bucket.count} · {formatLabel(bucket.bucketStart)}
                 </div>
                 <div
                   className="chart-bar"
@@ -42,20 +39,51 @@ export function VolumeChart({ stats }: Props) {
             ))}
           </div>
           <div className="chart-axis">
-            <span>{formatHour(buckets[0].bucketStart)}</span>
+            <span>{formatLabel(buckets[0].bucketStart)}</span>
             <span>now</span>
           </div>
         </>
       )}
 
-      <div className="legend">
-        {LEGEND.map((item) => (
-          <div className="legend-item" key={item.key}>
-            <span className="legend-swatch" style={{ background: item.color }} />
-            {item.label} ({stats?.matchBreakdown[item.key] ?? 0})
-          </div>
-        ))}
-      </div>
+      {matchBreakdown && (
+        <div className="legend">
+          {LEGEND.map((item) => (
+            <div className="legend-item" key={item.key}>
+              <span className="legend-swatch" style={{ background: item.color }} />
+              {item.label} ({matchBreakdown[item.key] ?? 0})
+            </div>
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+function formatHour(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDay(iso: string): string {
+  return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+export function VolumeChart({ stats }: { stats: Stats | null }) {
+  return (
+    <MentionVolumeChart
+      title="Mention volume — last 24h"
+      buckets={stats?.hourlyVolume ?? []}
+      formatLabel={formatHour}
+    />
+  );
+}
+
+export function WeeklyVolumeChart({ stats }: { stats: Stats | null }) {
+  return (
+    <MentionVolumeChart
+      title="Mention volume — last 7 days"
+      buckets={stats?.dailyVolume ?? []}
+      formatLabel={formatDay}
+      matchBreakdown={stats?.matchBreakdown}
+    />
   );
 }

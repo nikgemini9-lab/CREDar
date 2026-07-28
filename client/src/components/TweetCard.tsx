@@ -27,7 +27,7 @@ export function TweetCard({ tweet }: { tweet: TweetRecord }) {
           </a>
           {tweet.authorVerified ? " ✓" : ""}
         </span>
-        <span className="tweet-time">{timeAgo(tweet.discoveredAt)}</span>
+        <span className="tweet-time">{timeAgo(tweet.createdAt)}</span>
       </div>
       <p className="tweet-text">{tweet.text}</p>
       <div className="tweet-foot">

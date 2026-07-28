@@ -5,7 +5,7 @@ import { BigBuys } from "./components/BigBuys";
 import { Header } from "./components/Header";
 import { LiveFeed } from "./components/LiveFeed";
 import { StatCards } from "./components/StatCards";
-import { VolumeChart } from "./components/VolumeChart";
+import { VolumeChart, WeeklyVolumeChart } from "./components/VolumeChart";
 import type { AccountRecord, BigBuyRecord, CredarPublicConfig, Stats, TweetRecord } from "./types";
 
 const MAX_FEED_ITEMS = 100;
@@ -54,6 +54,7 @@ export default function App() {
         <BigBuys buys={bigBuys} />
         <div>
           <VolumeChart stats={stats} />
+          <WeeklyVolumeChart stats={stats} />
           <AccountLeaderboard accounts={accounts} />
         </div>
       </div>

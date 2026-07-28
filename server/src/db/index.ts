@@ -286,21 +286,34 @@ export async function getStats(): Promise<Stats> {
   const now = Date.now();
   const oneHourAgo = new Date(now - 60 * 60 * 1000).toISOString();
   const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
   const isDemo = config.demoMode ? 1 : 0;
 
-  const [totalTweetsRs, totalAccountsRs, tweetsLastHourRs, tweetsLast24hRs, allTweetsRs, topAccounts] =
+  // All "when did this happen" figures use created_at (when the tweet was
+  // actually posted), not discovered_at (when CREDAR found it) - otherwise a
+  // backfill run stamps a week of history as having all happened "now".
+  const [totalTweetsRs, totalAccountsRs, tweetsLastHourRs, tweetsLast24hRs, tweetsLast7dRs, recentTweetsRs, topAccounts] =
     await Promise.all([
       client.execute({ sql: "SELECT COUNT(*) as c FROM tweets WHERE is_demo = ?", args: [isDemo] }),
       client.execute({ sql: "SELECT COUNT(*) as c FROM accounts WHERE is_demo = ?", args: [isDemo] }),
       client.execute({
-        sql: "SELECT COUNT(*) as c FROM tweets WHERE is_demo = ? AND discovered_at >= ?",
+        sql: "SELECT COUNT(*) as c FROM tweets WHERE is_demo = ? AND created_at >= ?",
         args: [isDemo, oneHourAgo],
       }),
       client.execute({
-        sql: "SELECT COUNT(*) as c FROM tweets WHERE is_demo = ? AND discovered_at >= ?",
+        sql: "SELECT COUNT(*) as c FROM tweets WHERE is_demo = ? AND created_at >= ?",
         args: [isDemo, oneDayAgo],
       }),
-      client.execute({ sql: "SELECT matches, discovered_at FROM tweets WHERE is_demo = ?", args: [isDemo] }),
+      client.execute({
+        sql: "SELECT COUNT(*) as c FROM tweets WHERE is_demo = ? AND created_at >= ?",
+        args: [isDemo, sevenDaysAgo],
+      }),
+      // matchBreakdown covers the same 7-day window the charts show, so it
+      // doesn't count mentions older than either graph can display.
+      client.execute({
+        sql: "SELECT matches, created_at FROM tweets WHERE is_demo = ? AND created_at >= ?",
+        args: [isDemo, sevenDaysAgo],
+      }),
       getTopAccounts(5),
     ]);
 
@@ -311,15 +324,23 @@ export async function getStats(): Promise<Stats> {
     keyword: 0,
   };
 
-  const bucketMap = new Map<string, number>();
-  for (const row of allTweetsRs.rows) {
+  const hourlyBucketMap = new Map<string, number>();
+  const dailyBucketMap = new Map<string, number>();
+  for (const row of recentTweetsRs.rows) {
     const matches = JSON.parse(row.matches as string) as MatchKind[];
     for (const m of matches) matchBreakdown[m] += 1;
 
-    const bucket = new Date(row.discovered_at as string);
-    bucket.setMinutes(0, 0, 0);
-    const key = bucket.toISOString();
-    bucketMap.set(key, (bucketMap.get(key) ?? 0) + 1);
+    const createdAt = new Date(row.created_at as string);
+
+    const hourBucket = new Date(createdAt);
+    hourBucket.setMinutes(0, 0, 0);
+    const hourKey = hourBucket.toISOString();
+    hourlyBucketMap.set(hourKey, (hourlyBucketMap.get(hourKey) ?? 0) + 1);
+
+    const dayBucket = new Date(createdAt);
+    dayBucket.setHours(0, 0, 0, 0);
+    const dayKey = dayBucket.toISOString();
+    dailyBucketMap.set(dayKey, (dailyBucketMap.get(dayKey) ?? 0) + 1);
   }
 
   const hourlyVolume: StatsBucket[] = [];
@@ -327,7 +348,15 @@ export async function getStats(): Promise<Stats> {
     const bucket = new Date(now - i * 60 * 60 * 1000);
     bucket.setMinutes(0, 0, 0);
     const key = bucket.toISOString();
-    hourlyVolume.push({ bucketStart: key, count: bucketMap.get(key) ?? 0 });
+    hourlyVolume.push({ bucketStart: key, count: hourlyBucketMap.get(key) ?? 0 });
+  }
+
+  const dailyVolume: StatsBucket[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const bucket = new Date(now - i * 24 * 60 * 60 * 1000);
+    bucket.setHours(0, 0, 0, 0);
+    const key = bucket.toISOString();
+    dailyVolume.push({ bucketStart: key, count: dailyBucketMap.get(key) ?? 0 });
   }
 
   return {
@@ -335,8 +364,10 @@ export async function getStats(): Promise<Stats> {
     totalAccounts: Number(totalAccountsRs.rows[0]?.c ?? 0),
     tweetsLastHour: Number(tweetsLastHourRs.rows[0]?.c ?? 0),
     tweetsLast24h: Number(tweetsLast24hRs.rows[0]?.c ?? 0),
+    tweetsLast7d: Number(tweetsLast7dRs.rows[0]?.c ?? 0),
     matchBreakdown,
     hourlyVolume,
+    dailyVolume,
     topAccounts,
   };
 }

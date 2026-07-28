@@ -41,8 +41,10 @@ export interface Stats {
   totalAccounts: number;
   tweetsLastHour: number;
   tweetsLast24h: number;
+  tweetsLast7d: number;
   matchBreakdown: Record<MatchKind, number>;
   hourlyVolume: StatsBucket[];
+  dailyVolume: StatsBucket[];
   topAccounts: AccountRecord[];
 }
 
