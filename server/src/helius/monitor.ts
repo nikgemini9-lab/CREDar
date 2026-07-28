@@ -7,20 +7,24 @@ import type { EnhancedTransaction } from "./types.js";
 
 export type BigBuyHandler = (buy: BigBuyRecord) => void | Promise<void>;
 
-export async function processTransaction(tx: EnhancedTransaction, onBigBuy: BigBuyHandler): Promise<void> {
+export async function processTransaction(
+  tx: EnhancedTransaction,
+  onBigBuy: BigBuyHandler,
+  isDemo: boolean,
+): Promise<void> {
   if (await bigBuyExists(tx.signature)) return;
 
   const buy = await parseSwap(tx);
   if (!buy || !isBigEnough(buy)) return;
 
-  await insertBigBuy(buy);
+  await insertBigBuy(buy, isDemo);
   await onBigBuy(buy);
 }
 
 async function runDemoLoop(onBigBuy: BigBuyHandler): Promise<void> {
   console.log("[chain] HELIUS_WEBHOOK_AUTH_HEADER not set - running big-buy detection in DEMO MODE with synthetic swaps");
   for await (const tx of demoSwaps()) {
-    await processTransaction(tx, onBigBuy);
+    await processTransaction(tx, onBigBuy, true);
   }
 }
 

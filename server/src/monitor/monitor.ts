@@ -52,13 +52,15 @@ export function toTweetRecord(tweet: TweetLike): TweetRecord {
 
 export type TweetHandler = (tweet: TweetRecord) => void | Promise<void>;
 
-async function processTweet(raw: TweetLike, onTweet: TweetHandler): Promise<void> {
+async function processTweet(raw: TweetLike, onTweet: TweetHandler, isDemo: boolean): Promise<void> {
   if (await tweetExists(raw.id)) return;
 
   const record = toTweetRecord(raw);
-  await insertTweet(record);
-  await upsertAccount(record);
-  await setMeta(LAST_SEEN_ID_KEY, record.id);
+  await insertTweet(record, isDemo);
+  await upsertAccount(record, isDemo);
+  // Only advance the real Rettiwt cursor from live tweets - a demo tweet's id
+  // isn't a valid Twitter snowflake id and would break the next live search.
+  if (!isDemo) await setMeta(LAST_SEEN_ID_KEY, record.id);
 
   await onTweet(record);
 }
@@ -66,8 +68,13 @@ async function processTweet(raw: TweetLike, onTweet: TweetHandler): Promise<void
 async function runDemoLoop(onTweet: TweetHandler): Promise<void> {
   console.log("[monitor] RETTIWT_API_KEY not set - running in DEMO MODE with synthetic tweets");
   for await (const tweet of demoFeed()) {
-    await processTweet(tweet, onTweet);
+    await processTweet(tweet, onTweet, true);
   }
+}
+
+/** A Twitter/X snowflake id is a plain numeric string - guards against a stale/demo value in `meta`. */
+function isValidSinceId(value: string): boolean {
+  return /^\d+$/.test(value);
 }
 
 async function runLiveLoop(onTweet: TweetHandler): Promise<void> {
@@ -75,7 +82,11 @@ async function runLiveLoop(onTweet: TweetHandler): Promise<void> {
 
   while (true) {
     try {
-      const sinceId = await getMeta(LAST_SEEN_ID_KEY);
+      const storedSinceId = await getMeta(LAST_SEEN_ID_KEY);
+      const sinceId = storedSinceId && isValidSinceId(storedSinceId) ? storedSinceId : undefined;
+      if (storedSinceId && !sinceId) {
+        console.warn(`[monitor] ignoring invalid stored since_id "${storedSinceId}" (likely left over from demo mode)`);
+      }
       const filter = new TweetFilter({
         optionalWords: config.searchTerms,
         ...(sinceId ? { sinceId } : {}),
@@ -87,7 +98,7 @@ async function runLiveLoop(onTweet: TweetHandler): Promise<void> {
       );
 
       for await (const tweet of rettiwt.tweet.stream(filter, config.pollIntervalMs)) {
-        await processTweet(tweet as unknown as TweetLike, onTweet);
+        await processTweet(tweet as unknown as TweetLike, onTweet, false);
       }
     } catch (err) {
       console.error("[monitor] stream error, restarting shortly:", err);

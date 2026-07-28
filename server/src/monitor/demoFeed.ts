@@ -1,6 +1,6 @@
 import type { TweetLike } from "./monitor.js";
 
-const HANDLES = [
+export const DEMO_TWEET_HANDLES = [
   "solana_sarah",
   "degen_dave",
   "cred_believer",
@@ -10,6 +10,7 @@ const HANDLES = [
   "cryptocasper",
   "pumpfun_pete",
 ];
+const HANDLES = DEMO_TWEET_HANDLES;
 
 const TEMPLATES = [
   "$CRED is quietly building while everyone's distracted. accumulating here.",

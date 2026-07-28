@@ -75,7 +75,7 @@ export function createApiRouter(onBigBuy: BigBuyHandler): Router {
       const transactions = (Array.isArray(req.body) ? req.body : [req.body]) as EnhancedTransaction[];
       for (const tx of transactions) {
         if (tx.type !== "SWAP") continue;
-        await processTransaction(tx, onBigBuy);
+        await processTransaction(tx, onBigBuy, false);
       }
 
       res.status(200).json({ ok: true });

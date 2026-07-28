@@ -2,6 +2,7 @@ import { createClient } from "@libsql/client";
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config.js";
+import { DEMO_TWEET_HANDLES } from "../monitor/demoFeed.js";
 import type { AccountRecord, BigBuyRecord, MatchKind, Stats, StatsBucket, SwapSide, TweetRecord } from "../types.js";
 
 // Local `file:` URLs need their parent directory to exist up front.
@@ -14,6 +15,14 @@ const client = createClient({
   url: config.databaseUrl,
   authToken: config.databaseAuthToken,
 });
+
+async function addColumnIfMissing(table: string, column: string, definition: string): Promise<void> {
+  try {
+    await client.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  } catch (err) {
+    if (!String(err).includes("duplicate column")) throw err;
+  }
+}
 
 export async function initDb(): Promise<void> {
   await client.executeMultiple(`
@@ -72,6 +81,27 @@ export async function initDb(): Promise<void> {
 
     CREATE INDEX IF NOT EXISTS idx_big_buys_discovered_at ON big_buys(discovered_at DESC);
   `);
+
+  // Added after the initial release - CREATE TABLE IF NOT EXISTS doesn't add
+  // columns to tables that already exist, so backfill explicitly. This also
+  // retroactively tags any demo rows written before this column existed
+  // (demo tweets/swaps carry a recognizable id prefix; demo accounts are a
+  // small fixed list), so a database that's been running in demo mode never
+  // permanently mixes synthetic data in with real data once real credentials
+  // are configured.
+  await addColumnIfMissing("tweets", "is_demo", "INTEGER NOT NULL DEFAULT 0");
+  await addColumnIfMissing("accounts", "is_demo", "INTEGER NOT NULL DEFAULT 0");
+  await addColumnIfMissing("big_buys", "is_demo", "INTEGER NOT NULL DEFAULT 0");
+
+  await client.execute("UPDATE tweets SET is_demo = 1 WHERE id LIKE 'demo-%' AND is_demo = 0");
+  await client.execute("UPDATE big_buys SET is_demo = 1 WHERE tx_id LIKE 'demo-swap-%' AND is_demo = 0");
+  if (DEMO_TWEET_HANDLES.length > 0) {
+    const placeholders = DEMO_TWEET_HANDLES.map(() => "?").join(", ");
+    await client.execute({
+      sql: `UPDATE accounts SET is_demo = 1 WHERE username IN (${placeholders}) AND is_demo = 0`,
+      args: DEMO_TWEET_HANDLES,
+    });
+  }
 }
 
 function rowToTweet(row: Record<string, unknown>): TweetRecord {
@@ -130,12 +160,12 @@ export async function bigBuyExists(txId: string): Promise<boolean> {
   return rs.rows.length > 0;
 }
 
-export async function insertBigBuy(buy: BigBuyRecord): Promise<void> {
+export async function insertBigBuy(buy: BigBuyRecord, isDemo: boolean): Promise<void> {
   await client.execute({
     sql: `INSERT OR IGNORE INTO big_buys
       (tx_id, block_time, discovered_at, side, wallet_address, token_amount,
-       counter_symbol, counter_address, counter_amount, usd_value, platform)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       counter_symbol, counter_address, counter_amount, usd_value, platform, is_demo)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       buy.txId,
       buy.blockTime,
@@ -148,14 +178,15 @@ export async function insertBigBuy(buy: BigBuyRecord): Promise<void> {
       buy.counterAmount,
       buy.usdValue,
       JSON.stringify(buy.platform),
+      isDemo ? 1 : 0,
     ],
   });
 }
 
-export async function getRecentBigBuys(limit = 50): Promise<BigBuyRecord[]> {
+export async function getRecentBigBuys(limit = 50, isDemo = config.chainDemoMode): Promise<BigBuyRecord[]> {
   const rs = await client.execute({
-    sql: "SELECT * FROM big_buys ORDER BY discovered_at DESC LIMIT ?",
-    args: [limit],
+    sql: "SELECT * FROM big_buys WHERE is_demo = ? ORDER BY discovered_at DESC LIMIT ?",
+    args: [isDemo ? 1 : 0, limit],
   });
   return rs.rows.map((row) => rowToBigBuy(row as unknown as Record<string, unknown>));
 }
@@ -165,13 +196,13 @@ export async function tweetExists(id: string): Promise<boolean> {
   return rs.rows.length > 0;
 }
 
-export async function insertTweet(tweet: TweetRecord): Promise<void> {
+export async function insertTweet(tweet: TweetRecord, isDemo: boolean): Promise<void> {
   await client.execute({
     sql: `INSERT OR IGNORE INTO tweets
       (id, author_username, author_name, author_id, author_followers, author_verified,
        author_profile_image, text, url, created_at, discovered_at,
-       like_count, retweet_count, reply_count, view_count, matches)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       like_count, retweet_count, reply_count, view_count, matches, is_demo)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       tweet.id,
       tweet.authorUsername,
@@ -189,11 +220,12 @@ export async function insertTweet(tweet: TweetRecord): Promise<void> {
       tweet.replyCount,
       tweet.viewCount,
       JSON.stringify(tweet.matches),
+      isDemo ? 1 : 0,
     ],
   });
 }
 
-export async function upsertAccount(tweet: TweetRecord): Promise<void> {
+export async function upsertAccount(tweet: TweetRecord, isDemo: boolean): Promise<void> {
   const existing = await client.execute({
     sql: "SELECT 1 FROM accounts WHERE username = ?",
     args: [tweet.authorUsername],
@@ -217,8 +249,8 @@ export async function upsertAccount(tweet: TweetRecord): Promise<void> {
   } else {
     await client.execute({
       sql: `INSERT INTO accounts
-        (username, display_name, user_id, followers, verified, profile_image, first_seen, last_seen, mention_count)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        (username, display_name, user_id, followers, verified, profile_image, first_seen, last_seen, mention_count, is_demo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
       args: [
         tweet.authorUsername,
         tweet.authorName,
@@ -228,23 +260,24 @@ export async function upsertAccount(tweet: TweetRecord): Promise<void> {
         tweet.authorProfileImage,
         tweet.discoveredAt,
         tweet.discoveredAt,
+        isDemo ? 1 : 0,
       ],
     });
   }
 }
 
-export async function getRecentTweets(limit = 50): Promise<TweetRecord[]> {
+export async function getRecentTweets(limit = 50, isDemo = config.demoMode): Promise<TweetRecord[]> {
   const rs = await client.execute({
-    sql: "SELECT * FROM tweets ORDER BY discovered_at DESC LIMIT ?",
-    args: [limit],
+    sql: "SELECT * FROM tweets WHERE is_demo = ? ORDER BY discovered_at DESC LIMIT ?",
+    args: [isDemo ? 1 : 0, limit],
   });
   return rs.rows.map((row) => rowToTweet(row as unknown as Record<string, unknown>));
 }
 
-export async function getTopAccounts(limit = 20): Promise<AccountRecord[]> {
+export async function getTopAccounts(limit = 20, isDemo = config.demoMode): Promise<AccountRecord[]> {
   const rs = await client.execute({
-    sql: "SELECT * FROM accounts ORDER BY mention_count DESC, last_seen DESC LIMIT ?",
-    args: [limit],
+    sql: "SELECT * FROM accounts WHERE is_demo = ? ORDER BY mention_count DESC, last_seen DESC LIMIT ?",
+    args: [isDemo ? 1 : 0, limit],
   });
   return rs.rows.map((row) => rowToAccount(row as unknown as Record<string, unknown>));
 }
@@ -253,14 +286,21 @@ export async function getStats(): Promise<Stats> {
   const now = Date.now();
   const oneHourAgo = new Date(now - 60 * 60 * 1000).toISOString();
   const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+  const isDemo = config.demoMode ? 1 : 0;
 
   const [totalTweetsRs, totalAccountsRs, tweetsLastHourRs, tweetsLast24hRs, allTweetsRs, topAccounts] =
     await Promise.all([
-      client.execute("SELECT COUNT(*) as c FROM tweets"),
-      client.execute("SELECT COUNT(*) as c FROM accounts"),
-      client.execute({ sql: "SELECT COUNT(*) as c FROM tweets WHERE discovered_at >= ?", args: [oneHourAgo] }),
-      client.execute({ sql: "SELECT COUNT(*) as c FROM tweets WHERE discovered_at >= ?", args: [oneDayAgo] }),
-      client.execute("SELECT matches, discovered_at FROM tweets"),
+      client.execute({ sql: "SELECT COUNT(*) as c FROM tweets WHERE is_demo = ?", args: [isDemo] }),
+      client.execute({ sql: "SELECT COUNT(*) as c FROM accounts WHERE is_demo = ?", args: [isDemo] }),
+      client.execute({
+        sql: "SELECT COUNT(*) as c FROM tweets WHERE is_demo = ? AND discovered_at >= ?",
+        args: [isDemo, oneHourAgo],
+      }),
+      client.execute({
+        sql: "SELECT COUNT(*) as c FROM tweets WHERE is_demo = ? AND discovered_at >= ?",
+        args: [isDemo, oneDayAgo],
+      }),
+      client.execute({ sql: "SELECT matches, discovered_at FROM tweets WHERE is_demo = ?", args: [isDemo] }),
       getTopAccounts(5),
     ]);
 
