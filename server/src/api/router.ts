@@ -1,11 +1,12 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { config } from "../config.js";
-import { clearMeta, getRecentBigBuys, getRecentTweets, getStats, getTopAccounts } from "../db/index.js";
+import { clearMeta, getRecentBigBuys, getRecentTweets, getSentimentProgress, getStats, getTopAccounts } from "../db/index.js";
 import type { BigBuyHandler } from "../helius/monitor.js";
 import { getWebhookDebugState, processTransaction, recordWebhookAuthFailure } from "../helius/monitor.js";
 import { getTokenPriceUsd } from "../helius/price.js";
 import type { EnhancedTransaction } from "../helius/types.js";
 import { LAST_SEEN_ID_KEY } from "../monitor/monitor.js";
+import { getLastClassifyError, pingGemini } from "../sentiment/classify.js";
 
 function asyncHandler(handler: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -127,6 +128,28 @@ export function createApiRouter(onBigBuy: BigBuyHandler): Router {
       }
 
       res.json(getWebhookDebugState());
+    }),
+  );
+
+  // Browser-visitable diagnostic: proves whether the Gemini API is actually
+  // reachable and authenticating (not just "a key is set" - a real test
+  // call), plus how much of the real tweet backlog is classified so far and
+  // the last classification error, if any. Requires ADMIN_TOKEN to be set.
+  apiRouter.get(
+    "/admin/sentiment-debug",
+    asyncHandler(async (req, res) => {
+      if (!config.adminToken || req.query.token !== config.adminToken) {
+        res.status(401).send("Unauthorized - check the token in the URL matches ADMIN_TOKEN.");
+        return;
+      }
+
+      const [testCall, progress] = await Promise.all([pingGemini(), getSentimentProgress()]);
+      res.json({
+        geminiApiKeyConfigured: Boolean(config.geminiApiKey),
+        testCall,
+        progress,
+        lastClassifyError: getLastClassifyError() ?? null,
+      });
     }),
   );
 

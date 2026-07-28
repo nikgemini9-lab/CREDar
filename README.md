@@ -168,11 +168,30 @@ only applies to tweet text, which is already public).
 Classification runs in a slow background sweep (one tweet every ~8 seconds)
 rather than inline as tweets are ingested or all at once - this both keeps
 live polling/backfill fast and stays safely under Gemini's free-tier rate
-limit even if there's a large backlog to work through. Demo tweets are never
-classified, so demo mode never touches the API.
+limit even if there's a large backlog to work through. It works through
+*all* stored real tweets, not just new ones, so existing history gets
+classified too - just gradually (a few hundred tweets can take a while at
+one every 8 seconds). Demo tweets are never classified, so demo mode never
+touches the API.
 
 Leave `GEMINI_API_KEY` blank to disable sentiment analysis entirely - the
 meter, chart, and badges simply don't appear.
+
+#### Admin: is Gemini actually working?
+
+If the sentiment meter keeps showing "No data yet" longer than expected,
+visit (with the same `ADMIN_TOKEN` as above):
+
+```
+https://<your-service>.onrender.com/api/admin/sentiment-debug?token=<your ADMIN_TOKEN>
+```
+
+This makes one real test call to Gemini and reports whether it actually
+succeeded - not just "is a key configured," but "does it authenticate and
+respond right now" - along with the exact error message if it doesn't (e.g.
+an invalid key, or a rate-limit/quota error), plus how many of your stored
+real tweets are classified vs. still pending, so you can tell backfill
+progress from a genuine failure.
 
 #### Database (optional, for persistence across redeploys)
 
@@ -331,3 +350,4 @@ health check path `/api/health`, plan free.
 | `POST /api/webhooks/helius` | Helius webhook delivery target (see setup above) |
 | `GET /api/admin/reset-tweet-cursor` | Forces a fresh 7-day backfill (`?token=` must match `ADMIN_TOKEN`) |
 | `GET /api/admin/webhook-debug` | Last ~30 Helius webhook deliveries + why each was/wasn't recorded (`?token=` must match `ADMIN_TOKEN`) |
+| `GET /api/admin/sentiment-debug` | Live Gemini connectivity test + classification backfill progress (`?token=` must match `ADMIN_TOKEN`) |

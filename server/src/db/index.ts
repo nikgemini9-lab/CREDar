@@ -256,6 +256,22 @@ export async function setTweetSentiment(id: string, sentiment: Sentiment): Promi
   });
 }
 
+export interface SentimentProgress {
+  totalRealTweets: number;
+  classified: number;
+  pending: number;
+}
+
+export async function getSentimentProgress(): Promise<SentimentProgress> {
+  const [totalRs, classifiedRs] = await Promise.all([
+    client.execute({ sql: "SELECT COUNT(*) as c FROM tweets WHERE is_demo = 0", args: [] }),
+    client.execute({ sql: "SELECT COUNT(*) as c FROM tweets WHERE is_demo = 0 AND sentiment IS NOT NULL", args: [] }),
+  ]);
+  const totalRealTweets = Number(totalRs.rows[0]?.c ?? 0);
+  const classified = Number(classifiedRs.rows[0]?.c ?? 0);
+  return { totalRealTweets, classified, pending: totalRealTweets - classified };
+}
+
 export async function upsertAccount(tweet: TweetRecord, isDemo: boolean): Promise<void> {
   const existing = await client.execute({
     sql: "SELECT 1 FROM accounts WHERE username = ?",
