@@ -224,6 +224,23 @@ that run, and won't backfill again on its own. To force it:
    the server logs will show `no prior cursor - backfilling up to 7 day(s)
    of mentions`, and the dashboard will fill in with historical mentions.
 
+#### Admin: debugging missing big buys/sells
+
+If real on-chain trades aren't showing up on the dashboard, visit (with the
+same `ADMIN_TOKEN` as above):
+
+```
+https://<your-service>.onrender.com/api/admin/webhook-debug?token=<your ADMIN_TOKEN>
+```
+
+This shows the last ~30 transactions Helius actually delivered to the
+webhook, and exactly why each one was or wasn't recorded - e.g. `type=TRANSFER
+(not SWAP)`, `below the $500 threshold`, or `recorded: buy of $612.40`. If
+`recentDeliveries` is empty even after a real trade happens, Helius isn't
+reaching the endpoint at all - double check the webhook URL, that its
+Transaction Type is set to `SWAP`, and that the Auth Header matches
+`HELIUS_WEBHOOK_AUTH_HEADER` exactly (check `lastAuthFailureAt` here too).
+
 ### 3. Run it
 
 ```bash
@@ -313,3 +330,4 @@ health check path `/api/health`, plan free.
 | `WS /ws`            | Live push of each newly discovered post/big buy/sell/sentiment |
 | `POST /api/webhooks/helius` | Helius webhook delivery target (see setup above) |
 | `GET /api/admin/reset-tweet-cursor` | Forces a fresh 7-day backfill (`?token=` must match `ADMIN_TOKEN`) |
+| `GET /api/admin/webhook-debug` | Last ~30 Helius webhook deliveries + why each was/wasn't recorded (`?token=` must match `ADMIN_TOKEN`) |

@@ -2,7 +2,7 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import { config } from "../config.js";
 import { clearMeta, getRecentBigBuys, getRecentTweets, getStats, getTopAccounts } from "../db/index.js";
 import type { BigBuyHandler } from "../helius/monitor.js";
-import { processTransaction } from "../helius/monitor.js";
+import { getWebhookDebugState, processTransaction, recordWebhookAuthFailure } from "../helius/monitor.js";
 import { getTokenPriceUsd } from "../helius/price.js";
 import type { EnhancedTransaction } from "../helius/types.js";
 import { LAST_SEEN_ID_KEY } from "../monitor/monitor.js";
@@ -83,13 +83,13 @@ export function createApiRouter(onBigBuy: BigBuyHandler): Router {
     "/webhooks/helius",
     asyncHandler(async (req, res) => {
       if (!config.heliusWebhookAuthHeader || req.headers.authorization !== config.heliusWebhookAuthHeader) {
+        recordWebhookAuthFailure();
         res.status(401).json({ error: "unauthorized" });
         return;
       }
 
       const transactions = (Array.isArray(req.body) ? req.body : [req.body]) as EnhancedTransaction[];
       for (const tx of transactions) {
-        if (tx.type !== "SWAP") continue;
         await processTransaction(tx, onBigBuy, false);
       }
 
@@ -110,6 +110,23 @@ export function createApiRouter(onBigBuy: BigBuyHandler): Router {
 
       await clearMeta(LAST_SEEN_ID_KEY);
       res.status(200).send("Tweet cursor cleared. The next poll (within ~30s) will backfill again.");
+    }),
+  );
+
+  // Browser-visitable diagnostic: shows the last ~30 transactions Helius
+  // delivered to the webhook and exactly why each one was or wasn't recorded
+  // as a big buy/sell (wrong type, already seen, below threshold, etc.), plus
+  // whether the webhook's auth header has been rejected recently. Requires
+  // ADMIN_TOKEN to be set.
+  apiRouter.get(
+    "/admin/webhook-debug",
+    asyncHandler(async (req, res) => {
+      if (!config.adminToken || req.query.token !== config.adminToken) {
+        res.status(401).send("Unauthorized - check the token in the URL matches ADMIN_TOKEN.");
+        return;
+      }
+
+      res.json(getWebhookDebugState());
     }),
   );
 
