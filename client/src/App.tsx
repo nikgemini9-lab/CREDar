@@ -59,7 +59,7 @@ export default function App() {
       </div>
 
       <div className="footer-note">
-        CREDAR — monitoring X/Twitter via Rettiwt and on-chain swaps via Solscan
+        CREDAR — monitoring X/Twitter via Rettiwt and on-chain swaps via Helius
       </div>
     </div>
   );

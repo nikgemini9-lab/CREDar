@@ -19,10 +19,8 @@ services:
         sync: false
       - key: DEMO_MODE
         sync: false
-      - key: SOLSCAN_API_KEY
+      - key: HELIUS_WEBHOOK_AUTH_HEADER
         sync: false
-      - key: CHAIN_POLL_INTERVAL_MS
-        value: "30000"
       - key: BIG_BUY_MIN_USD
         value: "500"
       # Free Turso database (see README) - keeps tracked tweets/accounts

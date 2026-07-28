@@ -18,7 +18,7 @@ function parseSearchTerms(): string[] {
 }
 
 const rettiwtApiKey = process.env.RETTIWT_API_KEY?.trim() || undefined;
-const solscanApiKey = process.env.SOLSCAN_API_KEY?.trim() || undefined;
+const heliusWebhookAuthHeader = process.env.HELIUS_WEBHOOK_AUTH_HEADER?.trim() || undefined;
 
 const defaultLocalDbPath = path.join(process.cwd(), "data", "credar.db");
 
@@ -39,9 +39,10 @@ export const config: CredarConfig = {
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN?.trim() || undefined,
   telegramChatId: process.env.TELEGRAM_CHAT_ID?.trim() || undefined,
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
-  solscanApiKey,
-  chainDemoMode: process.env.CHAIN_DEMO_MODE === "true" || (!solscanApiKey && process.env.CHAIN_DEMO_MODE !== "false"),
-  chainPollIntervalMs: Number(process.env.CHAIN_POLL_INTERVAL_MS ?? 30_000),
+  heliusWebhookAuthHeader,
+  chainDemoMode:
+    process.env.CHAIN_DEMO_MODE === "true" ||
+    (!heliusWebhookAuthHeader && process.env.CHAIN_DEMO_MODE !== "false"),
   bigBuyMinUsd: Number(process.env.BIG_BUY_MIN_USD ?? 500),
   bigBuyMinTokens: Number(process.env.BIG_BUY_MIN_TOKENS ?? 0),
 };

@@ -17,15 +17,16 @@ on a DEX or routed through an aggregator like Jupiter — and alerts on those to
 
 Search is done via [**Rettiwt-API**](https://github.com/Rishikant181/Rettiwt-API)
 (an unofficial, cookie-authenticated X/Twitter client) instead of the paid
-official X API. On-chain activity is read via the **Solscan Pro API**.
+official X API. On-chain activity is delivered via a **Helius webhook**
+(free tier, push-based - no polling).
 
 ## How it works
 
 ```
 server/   Node.js + TypeScript backend
   - polls X/Twitter via rettiwt-api's tweet.stream()
-  - polls Solscan's token/defi/activities for swaps on the contract address,
-    flags buys above a USD threshold as "big buys"
+  - receives a webhook from Helius on every SWAP involving the contract
+    address, flags buys above a USD threshold as "big buys"
   - stores everything in SQLite - a local file by default, or a free remote
     libSQL/Turso database for storage that survives redeploys (via @libsql/client)
   - tracks a per-account mention leaderboard
@@ -35,7 +36,7 @@ server/   Node.js + TypeScript backend
 
 client/   Vite + React + TypeScript dashboard
   - live feed of matching posts
-  - live feed of big buys, with tx/wallet links to Solscan
+  - live feed of big buys, with tx/wallet links to Solscan's explorer
   - stat cards (total tracked, unique accounts, last hour / 24h)
   - 24h mention-volume chart + match-type breakdown
   - tracked-accounts leaderboard
@@ -45,7 +46,7 @@ If no Rettiwt credentials are configured, the server automatically runs tweet
 monitoring in **demo mode**: it generates synthetic sample posts on a timer so
 you can try the whole pipeline (dashboard, WebSocket updates, Telegram alerts)
 before wiring up real credentials. Big-buy detection has its own independent
-demo mode, active whenever `SOLSCAN_API_KEY` isn't set.
+demo mode, active whenever `HELIUS_WEBHOOK_AUTH_HEADER` isn't set.
 
 ## Setup
 
@@ -94,25 +95,37 @@ Leave `RETTIWT_API_KEY` blank to run in demo mode.
 
 Leave both blank to disable Telegram alerts.
 
-#### Solscan (on-chain big-buy detection)
+#### Helius (on-chain big-buy detection)
 
-1. Sign up for a plan at [solscan.io/apis](https://solscan.io/apis) (Pro API v2.0).
-2. Go to your Profile → API Management and copy your V2 API key into
-   `SOLSCAN_API_KEY`.
+Helius has a genuine free tier (unlike Solscan's Pro API, which is paid-only)
+and pushes events to CREDAR the instant a swap happens, instead of polling.
 
-With that set, CREDAR polls Solscan's `token/defi/activities` endpoint for
-swaps on the contract address, works out which side of each swap is $CRED,
-and treats it as a **buy** whenever $CRED is the token received. Swaps priced
-in SOL, USDC, or USDT get a real USD value (SOL's price is fetched from
-Solscan and cached for a few minutes); swaps against anything else fall back
-to a raw-token-amount threshold (`BIG_BUY_MIN_TOKENS`, disabled by default).
-Adjust the alert threshold with `BIG_BUY_MIN_USD` (default `500`).
+1. Sign up free at [helius.dev](https://helius.dev) (no card needed for the free tier).
+2. In the dashboard, go to **Webhooks** → **Create Webhook**:
+   - **Webhook URL**: `https://<your-service>.onrender.com/api/webhooks/helius`
+   - **Transaction Type(s)**: `SWAP`
+   - **Account Address(es)**: the contract address, `CREDBHvVqREBCAxMihzr8D1nepHMr2gmQoZWpmgGmeta`
+   - **Webhook Type**: `Enhanced`
+   - **Auth Header**: make up a random secret string (e.g. generate one with
+     `openssl rand -hex 32`) - Helius will echo it back on every delivery so
+     CREDAR can verify requests are really from Helius.
+3. Put that same secret in `HELIUS_WEBHOOK_AUTH_HEADER` in `server/.env` (or
+   as a Render env var).
 
-Both `ACTIVITY_TOKEN_SWAP` (direct DEX swaps) and `ACTIVITY_AGG_TOKEN_SWAP`
-(aggregator-routed swaps, e.g. via Jupiter) are included.
+With that set, every SWAP transaction touching the contract address gets
+POSTed to CREDAR, which works out which side of the swap is $CRED and treats
+it as a **buy** whenever the tracked wallet (the transaction's fee payer)
+receives $CRED. Swaps priced in SOL, USDC, or USDT get a real USD value
+(SOL's price comes from Jupiter's free public Price API, cached for a few
+minutes); swaps against anything else fall back to a raw-token-amount
+threshold (`BIG_BUY_MIN_TOKENS`, disabled by default). Adjust the alert
+threshold with `BIG_BUY_MIN_USD` (default `500`).
 
-Leave `SOLSCAN_API_KEY` blank to run big-buy detection in demo mode with
-synthetic swaps instead.
+Both direct DEX swaps and aggregator-routed swaps (e.g. via Jupiter) show up
+as `SWAP` transactions in Helius, so both are covered.
+
+Leave `HELIUS_WEBHOOK_AUTH_HEADER` blank to run big-buy detection in demo mode
+with synthetic swaps instead.
 
 #### Database (optional, for persistence across redeploys)
 
@@ -181,7 +194,7 @@ as a single Node web service:
    storing them in the blueprint):
    - `RETTIWT_API_KEY` — see cookie extraction steps above (omit to stay in demo mode)
    - `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`
-   - `SOLSCAN_API_KEY` — see the Solscan setup above (omit to stay in chain demo mode)
+   - `HELIUS_WEBHOOK_AUTH_HEADER` — see the Helius setup above (omit to stay in chain demo mode)
    - `DATABASE_URL` / `DATABASE_AUTH_TOKEN` — see the Turso setup above. **Set
      these on Render**, since without them CREDAR falls back to a local
      SQLite file, which the free plan wipes on every redeploy/restart.
@@ -227,3 +240,4 @@ health check path `/api/health`, plan free.
 | `GET /api/stats`    | Totals, 24h hourly volume, match breakdown   |
 | `GET /api/config`   | Public config (tracked terms, alert status)  |
 | `WS /ws`            | Live push of each newly discovered post/big buy |
+| `POST /api/webhooks/helius` | Helius webhook delivery target (see setup above) |

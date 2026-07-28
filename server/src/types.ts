@@ -80,9 +80,8 @@ export interface CredarConfig {
   telegramBotToken: string | undefined;
   telegramChatId: string | undefined;
   corsOrigin: string;
-  solscanApiKey: string | undefined;
+  heliusWebhookAuthHeader: string | undefined;
   chainDemoMode: boolean;
-  chainPollIntervalMs: number;
   bigBuyMinUsd: number;
   bigBuyMinTokens: number;
 }
