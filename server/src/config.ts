@@ -1,0 +1,64 @@
+import "dotenv/config";
+import path from "node:path";
+import type { CredarConfig } from "./types.js";
+
+const DEFAULT_CONTRACT_ADDRESS = "CREDBHvVqREBCAxMihzr8D1nepHMr2gmQoZWpmgGmeta";
+const DEFAULT_CASHTAG = "$CRED";
+const DEFAULT_HANDLE = "@crediblefin";
+
+function parseSearchTerms(): string[] {
+  const raw = process.env.SEARCH_TERMS;
+  if (raw && raw.trim().length > 0) {
+    return raw
+      .split(",")
+      .map((term) => term.trim())
+      .filter(Boolean);
+  }
+  return [DEFAULT_CASHTAG, DEFAULT_HANDLE, DEFAULT_CONTRACT_ADDRESS];
+}
+
+const rettiwtApiKey = process.env.RETTIWT_API_KEY?.trim() || undefined;
+const heliusWebhookAuthHeader = process.env.HELIUS_WEBHOOK_AUTH_HEADER?.trim() || undefined;
+
+const defaultLocalDbPath = path.join(process.cwd(), "data", "credar.db");
+
+export const config: CredarConfig = {
+  port: Number(process.env.PORT ?? 8787),
+  // Accepts a local `file:` path (default - no setup needed) or a remote
+  // libSQL/Turso URL (`libsql://<db>.turso.io`) for storage that survives
+  // redeploys on hosts with an ephemeral filesystem.
+  databaseUrl: process.env.DATABASE_URL ?? `file:${defaultLocalDbPath}`,
+  databaseAuthToken: process.env.DATABASE_AUTH_TOKEN?.trim() || undefined,
+  rettiwtApiKey,
+  demoMode: process.env.DEMO_MODE === "true" || (!rettiwtApiKey && process.env.DEMO_MODE !== "false"),
+  searchTerms: parseSearchTerms(),
+  contractAddress: process.env.CONTRACT_ADDRESS ?? DEFAULT_CONTRACT_ADDRESS,
+  cashtag: process.env.CASHTAG ?? DEFAULT_CASHTAG,
+  handle: process.env.HANDLE ?? DEFAULT_HANDLE,
+  pollIntervalMs: Number(process.env.POLL_INTERVAL_MS ?? 30_000),
+  backfillDays: Number(process.env.BACKFILL_DAYS ?? 7),
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN?.trim() || undefined,
+  telegramChatId: process.env.TELEGRAM_CHAT_ID?.trim() || undefined,
+  corsOrigin: process.env.CORS_ORIGIN ?? "*",
+  heliusWebhookAuthHeader,
+  chainDemoMode:
+    process.env.CHAIN_DEMO_MODE === "true" ||
+    (!heliusWebhookAuthHeader && process.env.CHAIN_DEMO_MODE !== "false"),
+  bigBuyMinUsd: Number(process.env.BIG_BUY_MIN_USD ?? 500),
+  bigBuyMinTokens: Number(process.env.BIG_BUY_MIN_TOKENS ?? 0),
+  adminToken: process.env.ADMIN_TOKEN?.trim() || undefined,
+  geminiApiKey: process.env.GEMINI_API_KEY?.trim() || undefined,
+  // Free-tier Gemini daily quotas can be as low as ~20 requests/day for some
+  // accounts/projects - rather than trying (and failing) to backfill a
+  // whole tweet history against that, only the most recent N real tweets
+  // are ever considered for classification. Raise this if your account has
+  // a higher quota (check GET /api/admin/sentiment-debug).
+  sentimentWindowSize: Number(process.env.SENTIMENT_WINDOW_SIZE ?? 20),
+  // Public, free, no API key required - fine for the light, infrequent
+  // (every ~15 min) calls this feature makes. Point this at your own Helius
+  // RPC URL (https://mainnet.helius-rpc.com/?api-key=<your key>, from the
+  // same Helius account used for webhooks) for more reliable service.
+  solanaRpcUrl: process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com",
+  topHolderCount: Number(process.env.TOP_HOLDER_COUNT ?? 15),
+  topHolderRefreshMs: Number(process.env.TOP_HOLDER_REFRESH_MS ?? 15 * 60_000),
+};

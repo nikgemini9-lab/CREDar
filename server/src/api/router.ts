@@ -1,0 +1,166 @@
+import { Router, type NextFunction, type Request, type Response } from "express";
+import { config } from "../config.js";
+import { clearMeta, getRecentBigBuys, getRecentTweets, getSentimentProgress, getStats, getTopAccounts } from "../db/index.js";
+import type { BigBuyHandler } from "../helius/monitor.js";
+import { getWebhookDebugState, processTransaction, recordWebhookAuthFailure } from "../helius/monitor.js";
+import { getTokenPriceUsd } from "../helius/price.js";
+import { getLastTopHoldersError, getTopHolders } from "../helius/topHolders.js";
+import type { EnhancedTransaction } from "../helius/types.js";
+import { LAST_SEEN_ID_KEY } from "../monitor/monitor.js";
+import { getLastClassifyError, pingGemini } from "../sentiment/classify.js";
+
+function asyncHandler(handler: (req: Request, res: Response) => Promise<void>) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    handler(req, res).catch(next);
+  };
+}
+
+export function createApiRouter(onBigBuy: BigBuyHandler): Router {
+  const apiRouter = Router();
+
+  apiRouter.get("/health", (_req, res) => {
+    res.json({ ok: true, demoMode: config.demoMode });
+  });
+
+  apiRouter.get(
+    "/tweets",
+    asyncHandler(async (req, res) => {
+      const limit = Math.min(Number(req.query.limit) || 50, 200);
+      res.json(await getRecentTweets(limit));
+    }),
+  );
+
+  apiRouter.get(
+    "/accounts",
+    asyncHandler(async (req, res) => {
+      const limit = Math.min(Number(req.query.limit) || 20, 100);
+      res.json(await getTopAccounts(limit));
+    }),
+  );
+
+  apiRouter.get(
+    "/stats",
+    asyncHandler(async (_req, res) => {
+      res.json(await getStats());
+    }),
+  );
+
+  apiRouter.get(
+    "/big-buys",
+    asyncHandler(async (req, res) => {
+      const limit = Math.min(Number(req.query.limit) || 50, 200);
+      res.json(await getRecentBigBuys(limit));
+    }),
+  );
+
+  apiRouter.get(
+    "/price",
+    asyncHandler(async (_req, res) => {
+      const priceUsd = await getTokenPriceUsd(config.contractAddress);
+      res.json({
+        mint: config.contractAddress,
+        priceUsd: priceUsd ?? null,
+        fetchedAt: new Date().toISOString(),
+      });
+    }),
+  );
+
+  apiRouter.get(
+    "/top-holders",
+    asyncHandler(async (_req, res) => {
+      const holders = await getTopHolders();
+      res.json({ holders, lastError: getLastTopHoldersError() ?? null });
+    }),
+  );
+
+  apiRouter.get("/config", (_req, res) => {
+    res.json({
+      demoMode: config.demoMode,
+      searchTerms: config.searchTerms,
+      cashtag: config.cashtag,
+      handle: config.handle,
+      contractAddress: config.contractAddress,
+      telegramEnabled: Boolean(config.telegramBotToken && config.telegramChatId),
+      chainDemoMode: config.chainDemoMode,
+      bigBuyMinUsd: config.bigBuyMinUsd,
+      sentimentEnabled: Boolean(config.geminiApiKey),
+    });
+  });
+
+  // Helius "Enhanced" webhook delivery: a JSON array of parsed transactions.
+  // See README for how to create the webhook and set HELIUS_WEBHOOK_AUTH_HEADER.
+  apiRouter.post(
+    "/webhooks/helius",
+    asyncHandler(async (req, res) => {
+      if (!config.heliusWebhookAuthHeader || req.headers.authorization !== config.heliusWebhookAuthHeader) {
+        recordWebhookAuthFailure();
+        res.status(401).json({ error: "unauthorized" });
+        return;
+      }
+
+      const transactions = (Array.isArray(req.body) ? req.body : [req.body]) as EnhancedTransaction[];
+      for (const tx of transactions) {
+        await processTransaction(tx, onBigBuy, false);
+      }
+
+      res.status(200).json({ ok: true });
+    }),
+  );
+
+  // One-off manual reset: visiting this URL in a browser clears the stored
+  // "last seen tweet" cursor, so the next poll treats it as a fresh start
+  // and runs the 7-day backfill again. Requires ADMIN_TOKEN to be set.
+  apiRouter.get(
+    "/admin/reset-tweet-cursor",
+    asyncHandler(async (req, res) => {
+      if (!config.adminToken || req.query.token !== config.adminToken) {
+        res.status(401).send("Unauthorized - check the token in the URL matches ADMIN_TOKEN.");
+        return;
+      }
+
+      await clearMeta(LAST_SEEN_ID_KEY);
+      res.status(200).send("Tweet cursor cleared. The next poll (within ~30s) will backfill again.");
+    }),
+  );
+
+  // Browser-visitable diagnostic: shows the last ~30 transactions Helius
+  // delivered to the webhook and exactly why each one was or wasn't recorded
+  // as a big buy/sell (wrong type, already seen, below threshold, etc.), plus
+  // whether the webhook's auth header has been rejected recently. Requires
+  // ADMIN_TOKEN to be set.
+  apiRouter.get(
+    "/admin/webhook-debug",
+    asyncHandler(async (req, res) => {
+      if (!config.adminToken || req.query.token !== config.adminToken) {
+        res.status(401).send("Unauthorized - check the token in the URL matches ADMIN_TOKEN.");
+        return;
+      }
+
+      res.json(getWebhookDebugState());
+    }),
+  );
+
+  // Browser-visitable diagnostic: proves whether the Gemini API is actually
+  // reachable and authenticating (not just "a key is set" - a real test
+  // call), plus how much of the real tweet backlog is classified so far and
+  // the last classification error, if any. Requires ADMIN_TOKEN to be set.
+  apiRouter.get(
+    "/admin/sentiment-debug",
+    asyncHandler(async (req, res) => {
+      if (!config.adminToken || req.query.token !== config.adminToken) {
+        res.status(401).send("Unauthorized - check the token in the URL matches ADMIN_TOKEN.");
+        return;
+      }
+
+      const [testCall, progress] = await Promise.all([pingGemini(), getSentimentProgress()]);
+      res.json({
+        geminiApiKeyConfigured: Boolean(config.geminiApiKey),
+        testCall,
+        progress,
+        lastClassifyError: getLastClassifyError() ?? null,
+      });
+    }),
+  );
+
+  return apiRouter;
+}

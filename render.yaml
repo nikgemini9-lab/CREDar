@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: credar
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: POLL_INTERVAL_MS
+        value: "30000"
+      - key: RETTIWT_API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: SEARCH_TERMS
+        sync: false
+      - key: DEMO_MODE
+        sync: false
+      - key: HELIUS_WEBHOOK_AUTH_HEADER
+        sync: false
+      - key: BIG_BUY_MIN_USD
+        value: "500"
+      # Free Turso database (see README) - keeps tracked tweets/accounts
+      # across redeploys even though Render's free plan has no persistent
+      # disk. Leave both unset to fall back to a local SQLite file, which
+      # resets on every redeploy/restart.
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_AUTH_TOKEN
+        sync: false
+      # Lets you visit /api/admin/reset-tweet-cursor?token=<this> in a
+      # browser to force a fresh 7-day backfill. See README.
+      - key: ADMIN_TOKEN
+        sync: false
