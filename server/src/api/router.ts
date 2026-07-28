@@ -1,9 +1,10 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { config } from "../config.js";
-import { getRecentBigBuys, getRecentTweets, getStats, getTopAccounts } from "../db/index.js";
+import { clearMeta, getRecentBigBuys, getRecentTweets, getStats, getTopAccounts } from "../db/index.js";
 import type { BigBuyHandler } from "../helius/monitor.js";
 import { processTransaction } from "../helius/monitor.js";
 import type { EnhancedTransaction } from "../helius/types.js";
+import { LAST_SEEN_ID_KEY } from "../monitor/monitor.js";
 
 function asyncHandler(handler: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -79,6 +80,22 @@ export function createApiRouter(onBigBuy: BigBuyHandler): Router {
       }
 
       res.status(200).json({ ok: true });
+    }),
+  );
+
+  // One-off manual reset: visiting this URL in a browser clears the stored
+  // "last seen tweet" cursor, so the next poll treats it as a fresh start
+  // and runs the 7-day backfill again. Requires ADMIN_TOKEN to be set.
+  apiRouter.get(
+    "/admin/reset-tweet-cursor",
+    asyncHandler(async (req, res) => {
+      if (!config.adminToken || req.query.token !== config.adminToken) {
+        res.status(401).send("Unauthorized - check the token in the URL matches ADMIN_TOKEN.");
+        return;
+      }
+
+      await clearMeta(LAST_SEEN_ID_KEY);
+      res.status(200).send("Tweet cursor cleared. The next poll (within ~30s) will backfill again.");
     }),
   );
 

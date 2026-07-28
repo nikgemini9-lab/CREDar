@@ -162,6 +162,21 @@ regardless of this setting, so that's the practical ceiling. After the
 initial catch-up, it resumes from the newest tweet seen on every subsequent
 poll, so nothing is missed between polls or across restarts.
 
+#### Admin: forcing a fresh backfill
+
+Backfill only runs when there's no stored cursor at all - if the app ever
+ran live even briefly before you read this, it already saved a cursor from
+that run, and won't backfill again on its own. To force it:
+
+1. Set `ADMIN_TOKEN` to a secret you invent (e.g. `openssl rand -hex 16`).
+2. After it's deployed, visit this URL in any browser:
+   ```
+   https://<your-service>.onrender.com/api/admin/reset-tweet-cursor?token=<your ADMIN_TOKEN>
+   ```
+3. You'll see a confirmation message. Within ~30 seconds (one poll cycle),
+   the server logs will show `no prior cursor - backfilling up to 7 day(s)
+   of mentions`, and the dashboard will fill in with historical mentions.
+
 ### 3. Run it
 
 ```bash
@@ -206,6 +221,7 @@ as a single Node web service:
      these on Render**, since without them CREDAR falls back to a local
      SQLite file, which the free plan wipes on every redeploy/restart.
    - `SEARCH_TERMS` / `DEMO_MODE` if you want to override the defaults
+   - `ADMIN_TOKEN` — a secret of your choosing, lets you force a fresh backfill later (see above)
 
 `render.yaml` is set to the **free** plan, which has one tradeoff worth
 knowing about: free web services sleep after 15 minutes with no inbound
@@ -248,3 +264,4 @@ health check path `/api/health`, plan free.
 | `GET /api/config`   | Public config (tracked terms, alert status)  |
 | `WS /ws`            | Live push of each newly discovered post/big buy |
 | `POST /api/webhooks/helius` | Helius webhook delivery target (see setup above) |
+| `GET /api/admin/reset-tweet-cursor` | Forces a fresh 7-day backfill (`?token=` must match `ADMIN_TOKEN`) |

@@ -352,3 +352,7 @@ export async function setMeta(key: string, value: string): Promise<void> {
     args: [key, value],
   });
 }
+
+export async function clearMeta(key: string): Promise<void> {
+  await client.execute({ sql: "DELETE FROM meta WHERE key = ?", args: [key] });
+}

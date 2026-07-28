@@ -6,7 +6,7 @@ import { classifyMatches } from "./match.js";
 import { createRettiwtClient } from "./rettiwtClient.js";
 import { demoFeed } from "./demoFeed.js";
 
-const LAST_SEEN_ID_KEY = "last_seen_tweet_id";
+export const LAST_SEEN_ID_KEY = "last_seen_tweet_id";
 const RESTART_DELAY_MS = 15_000;
 const SEARCH_PAGE_SIZE = 20; // rettiwt-api caps tweet.search()'s count at 20
 const MAX_PAGES_PER_POLL = 50; // safety cap: 50 * 20 = 1000 tweets per poll/backfill

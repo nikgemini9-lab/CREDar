@@ -85,4 +85,5 @@ export interface CredarConfig {
   chainDemoMode: boolean;
   bigBuyMinUsd: number;
   bigBuyMinTokens: number;
+  adminToken: string | undefined;
 }

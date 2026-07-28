@@ -31,3 +31,7 @@ services:
         sync: false
       - key: DATABASE_AUTH_TOKEN
         sync: false
+      # Lets you visit /api/admin/reset-tweet-cursor?token=<this> in a
+      # browser to force a fresh 7-day backfill. See README.
+      - key: ADMIN_TOKEN
+        sync: false
